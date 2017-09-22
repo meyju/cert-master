@@ -84,7 +84,7 @@ class CaLocal:
 
             # Sign CSR with LocalCA
             self.cert.generateNewCertFromCSRsignedByCA(self)
-            self.cert.setIntermediateCert(self.caCert)
+            self.cert.setIntermediateCert(self.caCert.cert)
 
             return True
         except:
@@ -96,8 +96,8 @@ class CaLocal:
         self.cert.saveCSRasPEM(domain['save_path'] + domain['Domain']+'_'+self.cert.keytype.lower()+".csr")
         self.cert.saveKeyAsPEM(domain['save_path'] + domain['Domain']+'_'+self.cert.keytype.lower()+".key")
         self.cert.saveCrtAsPEM(domain['save_path'] + domain['Domain'] + '_' + self.cert.keytype.lower() + ".crt.pem")
-        #self.cert.saveIntermediateAsPEM(domain['save_path'] + domain['Domain'] + '_' + self.cert.keytype.lower() + ".intermediate.pem")
-        #self.cert.saveChainAsPEM(domain['save_path'] + domain['Domain'] + '_' + self.cert.keytype.lower() + ".chain.pem")
+        self.cert.saveIntermediateAsPEM(domain['save_path'] + domain['Domain'] + '_' + self.cert.keytype.lower() + ".intermediate.pem")
+        self.cert.saveChainAsPEM(domain['save_path'] + domain['Domain'] + '_' + self.cert.keytype.lower() + ".chain.pem")
         return True
 
     def clean_up(self):
