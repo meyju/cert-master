@@ -1,0 +1,25 @@
+# Domain List
+---
+Costumer: "Costumer1"
+Stage: "prod"
+Sub: "web"
+Domain: "www.example.com"
+AlternativeName:
+    - "foo1.example.com"
+    - "foo2.example.com"
+    - "bar.example.com"
+---
+Costumer: "Costumer1"
+Stage: "stage"
+Sub: "web"
+Domain: "test.example.com"
+---
+Costumer: "Local"
+Stage: "dev"
+Domain: "dev.example.local"
+CA: "LocalCA"
+subject:
+  ORGANIZATION: 'My Organization'
+    ORGANIZATIONAL_UNIT: 'Development'
+    EMAIL: 'noc+development@example.com'
+---
