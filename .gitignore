@@ -99,3 +99,13 @@ ENV/
 
 # mypy
 .mypy_cache/
+
+
+# IDE
+.idea/
+
+# OS X
+.DS_Store
+
+# local development folder
+development/
