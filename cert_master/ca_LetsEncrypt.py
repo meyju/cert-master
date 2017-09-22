@@ -28,7 +28,7 @@ class CaLetsEncrypt:
         if stageing:
             self.DIRECTORY_URL = 'https://acme-v01.api.letsencrypt.org/directory'  # Production
         else:
-            self.DIRECTORY_URL_STAGE = 'https://acme-staging.api.letsencrypt.org/directory' # Staging
+            self.DIRECTORY_URL = 'https://acme-staging.api.letsencrypt.org/directory' # Staging
         self.authorization = {}
         self.challenge_authorization = {}
         self.Route53 = None
@@ -71,7 +71,7 @@ class CaLetsEncrypt:
 
     def acme_Connection(self):
         try:
-            self.acme = client.Client(self.DIRECTORY_URL_STAGE, self.jwk_token)
+            self.acme = client.Client(self.DIRECTORY_URL, self.jwk_token)
             self.logger.info('LetsEnrypt ACME Connection established')
         except Exception as e:
             print(e)
