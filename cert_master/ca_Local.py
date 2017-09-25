@@ -68,11 +68,6 @@ class CaLocal:
         self.caCertFile = caCertFile
 
 
-
-
-
-
-
     def request_certificate(self,domain):
 
         # TODO: Check if Domain match with LocalCA CertificatePolicies
@@ -93,7 +88,7 @@ class CaLocal:
     def save_certificates_and_key(self, domain):
         # Save all
         self.logger.info('Saving recived LocalCA certificates and key')
-        self.cert.saveCSRasPEM(domain['save_path'] + domain['Domain']+'_'+self.cert.keytype.lower()+".csr")
+        #self.cert.saveCSRasPEM(domain['save_path'] + domain['Domain']+'_'+self.cert.keytype.lower()+".csr")
         self.cert.saveKeyAsPEM(domain['save_path'] + domain['Domain']+'_'+self.cert.keytype.lower()+".key")
         self.cert.saveCrtAsPEM(domain['save_path'] + domain['Domain'] + '_' + self.cert.keytype.lower() + ".crt.pem")
         self.cert.saveIntermediateAsPEM(domain['save_path'] + domain['Domain'] + '_' + self.cert.keytype.lower() + ".intermediate.pem")

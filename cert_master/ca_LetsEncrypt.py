@@ -7,6 +7,7 @@ import hashlib
 import base64
 import requests
 import time
+import json
 from OpenSSL import crypto
 from acme import messages
 from acme import jose
@@ -76,6 +77,16 @@ class CaLetsEncrypt:
         except Exception as e:
             print(e)
         return True
+
+    def acme_AccountInfo(self):
+        try:
+            self.logger.info("Requesting account data...")
+            # TODO: Get Account URI and Status
+            self.logger.error("TODO: Get Account URI and Status")
+        except Exception as e:
+            print(e)
+        return True
+
 
     def get_acme_authorization(self, domain, san=[]):
         acme_authorizations=[domain]

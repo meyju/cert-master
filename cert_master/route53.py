@@ -67,11 +67,11 @@ class r53:
         self.wait(fqdn=fqdn, sleeptime=sleeptime, maxwait_count=maxwait_count)
 
     def wait(self, fqdn=None, sleeptime=2, maxwait_count=30):
-        for y in range(0, maxwait_count):
+        for y in range(1, maxwait_count+1):
             if fqdn:
-                self.logger.debug('Get status of "{}" ChangeResourceRecordSets Id "{}" ({}) '.format(fqdn, self.change_id, y))
+                self.logger.debug('Get status of "{}" ChangeResourceRecordSets Id "{}" (Check #{}) '.format(fqdn, self.change_id, y))
             else:
-                self.logger.debug('Get status of ChangeResourceRecordSets Id "{}" ({}) '.format(self.change_id, y))
+                self.logger.debug('Get status of ChangeResourceRecordSets Id "{}" (Check #{}) '.format(self.change_id, y))
             get_change = self.connection.get_change(Id=self.change_id)
             self.status = get_change
             status_change = self.status['ChangeInfo']['Status']
