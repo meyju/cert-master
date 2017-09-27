@@ -78,11 +78,12 @@ class CaLocal:
             self.cert.generateNewCSR(with_new_key=True,fqdn=domain['Domain'],san=domain['AlternativeName'], subject=domain['subject'])
 
             # Sign CSR with LocalCA
-            self.cert.generateNewCertFromCSRsignedByCA(self)
             self.cert.setIntermediateCert(self.caCert.cert)
+            self.cert.generateNewCertFromCSRsignedByCA(self)
 
             return True
-        except:
+        except Exception as e:
+            self.logger.error(e)
             return False
 
     def save_certificates_and_key(self, domain):

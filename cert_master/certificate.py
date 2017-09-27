@@ -13,6 +13,7 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives import serialization
 from cryptography.x509.oid import NameOID
+from cryptography.x509.general_name import GeneralName
 
 
 class MyCertificate:
@@ -180,7 +181,7 @@ class MyCertificate:
         # Sign the CSR with our private key.
         self.csr = csr.sign(self.key, hashes.SHA256(), default_backend())
 
-    def generateNewCertFromCSRsignedByCA(self, SigningCA):
+    def generateNewCertFromCSRsignedByCA(self, SigningCA, SubjectKeyIdentifier=True, AuthorityKeyIdentifier=True):
 
         builder = x509.CertificateBuilder()
 
@@ -201,6 +202,7 @@ class MyCertificate:
             # TODO: Improvement - Validate Extensions and the content of them
             if x509.oid.ExtensionOID.BASIC_CONSTRAINTS == extension.oid:
                 builder = builder.add_extension(extension.value, critical=extension.critical)
+                # TODO: Force BasicConstrains CA=False here
 
             if x509.oid.ExtensionOID.SUBJECT_ALTERNATIVE_NAME == extension.oid:
                 builder = builder.add_extension(extension.value, critical=extension.critical)
@@ -211,9 +213,32 @@ class MyCertificate:
             if x509.oid.ExtensionOID.EXTENDED_KEY_USAGE == extension.oid:
                 builder = builder.add_extension(extension.value, critical=extension.critical)
 
+        if SubjectKeyIdentifier == True:
+            builder = builder.add_extension(x509.SubjectKeyIdentifier.from_public_key(self.csr.public_key()),
+                                            critical=False
+                                            )
+
+        if AuthorityKeyIdentifier == True:
+            builder = builder.add_extension(
+                x509.AuthorityKeyIdentifier.from_issuer_public_key(SigningCA.caCert.cert.public_key()),
+                critical=False
+                )
+
+            # TODO: Add AuthorityKeyIdentifier with key_identifier, authority_cert_issuer, authority_cert_serial_number
+            # e.G.
+            # builder = builder.add_extension(
+            #     x509.AuthorityKeyIdentifier(
+            #         x509.AuthorityKeyIdentifier.from_issuer_public_key(SigningCA.caCert.cert.public_key()),
+            #         SigningCA.caCert.cert.subject,
+            #         SigningCA.caCert.cert.serial,
+            #     ),
+            #     critical=False,
+            # )
+
         # Finally Sign the Certificate
         self.cert = builder.sign(
-            private_key=SigningCA.caKey.key, algorithm=hashes.SHA256(),
+            private_key=SigningCA.caKey.key,
+            algorithm=hashes.SHA256(),
             backend=default_backend()
         )
         return True
@@ -342,12 +367,6 @@ class MyCertificate:
             if len(san_removed) > 0:
                 san_msg += ' SAN Removed: '+ str(san_removed)
             return (False, san_msg)
-
-
-
-
-
-
 
 
     def clean_up(self):

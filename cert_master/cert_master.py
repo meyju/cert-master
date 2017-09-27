@@ -192,8 +192,8 @@ class CertMaster:
                 self.stats['cert_config_error'] += 1
                 continue
 
-            self.logger.info('Certificat (CN/Domain): '.format(domain['Domain']))
-            self.logger.debug('Domainconfig: '.format(domain))
+            self.logger.info('Certificat (CN/Domain): {}'.format(domain['Domain']))
+            self.logger.debug('Domainconfig: {}'.format(domain))
             self.stats['fqdns'] += (1 + len(domain['AlternativeName']))
 
             # Create Save Directory if it not exists:
@@ -294,15 +294,18 @@ class CertMaster:
             res = self._useLetsEncryptCA(domain)
             if res == False:
                 self.stats['cert_renew_failed'] += 1
+            else:
+                self.stats['cert_renew_successful'] += 1
         elif domain['CA'] == "LocalCA":
             self.logger.info('Requesting Certificate signed by CA: LocalCA')
             res = self._useLocalCA(domain)
             if res == False:
                 self.stats['cert_renew_failed'] += 1
+            else:
+                self.stats['cert_renew_successful'] += 1
         else:
             self.logger.error('Unknown CA "{}" requested for Certificate signing!'.format(domain['CA']))
 
-        self.stats['cert_renew_successful'] += 1
         self.logger.info('Requesting Certificate for "{}" finished'.format(domain['Domain']))
 
     def _checkCertificate(self, domain):
