@@ -168,7 +168,7 @@ class CertMaster:
 
 
 
-        self.logger.info('starting complete, checking now for certificates')
+        self.logger.info('startup complete, checking now for certificates')
 
         threading_tasks = []
 

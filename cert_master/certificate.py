@@ -75,6 +75,15 @@ class MyCertificate:
 
         return False
 
+    def loadCSRfile(self, csrfile=None):
+        with open(csrfile, "rb") as csr_file:
+           csr = x509.load_pem_x509_csr(csr_file.read(), backend=self.backend)
+           self.csr = csr
+
+           return True
+
+        return False
+
     def returnKeyAsPEM(self):
         self.logger.error('Not IMPLEMENTET YET !!!')
 
@@ -226,7 +235,7 @@ class MyCertificate:
 
             # TODO: Add AuthorityKeyIdentifier with key_identifier, authority_cert_issuer, authority_cert_serial_number
             # e.G.
-            # builder = builder.add_extension(
+            # # builder = builder.add_extension(
             #     x509.AuthorityKeyIdentifier(
             #         x509.AuthorityKeyIdentifier.from_issuer_public_key(SigningCA.caCert.cert.public_key()),
             #         SigningCA.caCert.cert.subject,
