@@ -235,6 +235,7 @@ class CertMaster:
 
         # TODO: Check Generic Default Config
         # TODO: Check CAs Default Config
+        self._check_baseconfig()
 
         # TODO: Check LE Account/Connection
         # TODO: Check AWS Route53 Account/Connection
@@ -624,6 +625,18 @@ class CertMaster:
             domain['save_path'] = domain['save_path'].replace('//', '/')
 
         return (domain, validation_error)
+
+    def _check_baseconfig(self):
+        # Interpret Percentage Value for 'Lifetime Left'
+        if 'cert_renew_lifetime_left' in self.baseconfig['LetsEncrypt']:
+            if '%' in self.baseconfig['LetsEncrypt']['cert_renew_lifetime_left']:
+                self.baseconfig['LetsEncrypt']['cert_renew_lifetime_left'] = float(
+                    self.baseconfig['LetsEncrypt']['cert_renew_lifetime_left'].strip('%')) / 100.0
+
+        if 'cert_renew_lifetime_left' in self.baseconfig['LocalCA']:
+            if '%' in self.baseconfig['LocalCA']['cert_renew_lifetime_left']:
+                self.baseconfig['LocalCA']['cert_renew_lifetime_left'] = float(
+                    self.baseconfig['LocalCA']['cert_renew_lifetime_left'].strip('%')) / 100.0
 
     def _logStats(self):
         self.logger.info(50 * '=')
