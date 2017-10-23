@@ -5,5 +5,5 @@ requests>=2.18
 argparse
 boto3
 acme>=0.18
-cryptography>=2.0.3
+cryptography>=2.1.1
 pyOpenSSL

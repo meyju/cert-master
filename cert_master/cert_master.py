@@ -33,7 +33,9 @@ class CertMaster:
         self.stats['fqdns'] = 0
         self.stats['cert_config_error'] = 0
         self.stats['cert_total_LetsEncrypt'] = 0
+        self.stats['cert_fqdn_LetsEncrypt'] = 0
         self.stats['cert_total_LocalCA'] = 0
+        self.stats['cert_fqdn_LocalCA'] = 0
         self.stats['cert_check_successful'] = 0
         self.stats['cert_check_renew'] = 0
         self.stats['cert_renew_successful'] = 0
@@ -74,6 +76,11 @@ class CertMaster:
         Check all configured certificates, if they are created like configured and are valid. If necessary they are created/reissued.
             """
 
+        DESCRIPTION_CERT = \
+            """
+        Check a specific configured certificates, if it is created like configured and is valid. If necessary it is created/reissued.
+            """
+
         parser = argparse.ArgumentParser(prog=PROG,
                                          description=DESCRIPTION,
                                          formatter_class=Formatter,
@@ -81,7 +88,7 @@ class CertMaster:
 
         subparsers = parser.add_subparsers()
 
-        # Auto
+        # Bot - Auto all
         bot = subparsers.add_parser(
             'bot',
             help="Checking all configured certificates and renew/reissue if necessary",
@@ -96,6 +103,22 @@ class CertMaster:
                          help='switch to staging mode')
         bot.add_argument('-v', '--verbose', default=0, action='count', help='Loglevel -vvv for debug')
         bot.set_defaults(mode='bot')
+
+        # Cert - Only one given Domain
+        cert = subparsers.add_parser(
+            'cert',
+            help="Checking specific certificates if renew/reissue is necessary",
+            description=DESCRIPTION_CERT,
+            formatter_class=Formatter,
+        )
+        cert.add_argument('--config', '-c', dest="config", help='YAML file with config', required=True)
+        cert.add_argument('--cert', '--certificate', dest='certificate', required=True, help='the configured Domain')
+        cert.add_argument('--force', '--force-renew', dest='force_renew', required=False, action='store_false',
+                          help='the configured Domain')
+        cert.add_argument('--stage', dest='stage', required=False, action='store_false',
+                         help='switch to staging mode')
+        cert.add_argument('-v', '--verbose', default=0, action='count', help='Loglevel -vvv for debug')
+        cert.set_defaults(mode='cert')
 
         # Account info
         info = subparsers.add_parser(
@@ -132,6 +155,8 @@ class CertMaster:
             self.info()
         elif self.args.mode == 'bot':
             self.bot()
+        elif self.args.mode == 'cert':
+            self.cert()
         elif self.args.mode == 'register':
             self.register()
         sys.exit(0)
@@ -150,6 +175,57 @@ class CertMaster:
 
     def register(self):
         self.logger.error('CertMaster REGISTER Function - NOT Implementet yet')
+
+
+    def cert(self):
+        self.logger.debug('CertMaster CERT')
+
+        self._loadConfigs()
+
+        # Connect to Route53:
+        self._ConnectDNSRoute53()
+
+
+
+        self.logger.info('startup complete, checking now certificate')
+        for domain in self.domainconfig:
+            if domain['Domain'] in self.args.certificate:
+                self.logger.debug('Domain found in config')
+                break
+            else:
+                continue
+
+        (domain, validation_error) = self._validate_and_fillup_with_defaults(domain)
+        if validation_error is not False:
+            self.logger.error('Vailidation failure: {}'.format(validation_error))
+            if 'Domain' not in domain:
+                self.logger.error('skipping faulty configuration! {}'.format(domain))
+            else:
+                self.logger.error('skipping "{}" certificate!'.format(domain['Domain']))
+            return False
+        self.logger.info('Certificat (CN/Domain): {}'.format(domain['Domain']))
+        self.logger.debug('Domainconfig: {}'.format(domain))
+
+        # Create Save Directory if it not exists:
+        try:
+            os.makedirs(domain['save_path'], exist_ok=True)
+        except Exception as e:
+            self.logger.error('could not create directory "{}" for certificate: {}'.format(domain['save_path'], e))
+            self.logger.error('skipping "{}" certificate!'.format(domain['Domain']))
+
+        # Check if Create or Renew Certificate
+        (check_result, check_msg) = self._checkCertificate(domain)
+        if check_result is True and domain['force_renew'] == False and self.args.force_renew == False:
+            self.logger.info('Certificate "{}" is valid and matches configuration.'.format(domain['Domain']))
+        else:
+            for msg in check_msg:
+                self.logger.warning('Certificate "{}" - {}'.format(domain['Domain'], msg))
+            if domain['force_renew'] == True or self.args.force_renew == True:
+                self.logger.warning('Certificate "{}" - Forced to renew'.format(domain['Domain']))
+            self.logger.info('Certificate "{}" has to be created/reissued.'.format(domain['Domain']))
+
+        self._createCertificate(domain)
+
 
 
     def bot(self):
@@ -180,8 +256,10 @@ class CertMaster:
             (domain, validation_error) = self._validate_and_fillup_with_defaults(domain)
             if domain['CA'] == "LetsEncrypt":
                 self.stats['cert_total_LetsEncrypt'] += 1
+                self.stats['cert_fqdn_LetsEncrypt'] += (1 + len(domain['AlternativeName']))
             elif domain['CA'] == "LocalCA":
                 self.stats['cert_total_LocalCA'] += 1
+                self.stats['cert_fqdn_LocalCA'] += (1 + len(domain['AlternativeName']))
             if validation_error is not False:
                 self.logger.error('Vailidation failure: {}'.format(validation_error))
                 if 'Domain' not in domain:
@@ -267,11 +345,62 @@ class CertMaster:
         except:
             return False
 
+    def _VerifiyCamelCase(self,x, recusiv=True):
+        r = {}
+        for k, v in x.items():
+            if isinstance(v, dict) and recusiv == True:
+                v = self._VerifiyCamelCase(v)
+            if isinstance(k, str):
+                if k.lower() == 'domain':
+                    r['Domain'] = v
+                elif k.lower() == 'letsencrypt':
+                    r['LetsEncrypt'] = v
+                elif k.lower() == 'localca':
+                    r['LocalCA'] = v
+                elif k.lower() == 'key':
+                    r['Key'] = v
+                elif k.lower() == 'keypassphrase':
+                    r['KeyPassphrase'] = v
+                elif k.lower() == 'cert':
+                    r['Cert'] = v
+                elif k.lower() == 'generic':
+                    r['Generic'] = v
+                elif k.lower() == 'ca':
+                    r['CA'] = v
+                elif k.lower() == 'defaultca':
+                    r['defaultCA'] = v
+                elif k.lower() == 'issuer_name':
+                    r['Issuer_Name'] = v
+                elif k.lower() == 'costumer':
+                    r['Costumer'] = v
+                elif k.lower() == 'stage':
+                    r['Stage'] = v
+                elif k.lower() == 'sub':
+                    r['Sub'] = v
+                elif k.lower() == 'alternativename':
+                    r['AlternativeName'] = v
+                elif k.lower() == 'organization':
+                    r['ORGANIZATION'] = v
+                elif k.lower() == 'organizational_unit':
+                    r['ORGANIZATIONAL_UNIT'] = v
+                elif k.lower() == 'country':
+                    r['COUNTRY'] = v
+                elif k.lower() == 'state':
+                    r['STATE'] = v
+                elif k.lower() == 'locality':
+                    r['LOCALITY'] = v
+                elif k.lower() == 'email':
+                    r['EMAIL'] = v
+                else:
+                    r[k.lower()] = v
+            else:
+                r[k] = v
+        return r
 
     def _loadConfigs(self):
         self.logger.debug('using config file: {}'.format(self.args.config))
         with open(self.args.config, 'r') as fstream:
-            self.baseconfig = yaml.load(fstream)
+            self.baseconfig = self._VerifiyCamelCase(yaml.load(fstream))
 
         # loading yaml config for domains
         self.domainconfig = []
@@ -401,8 +530,8 @@ class CertMaster:
                 check_result = False
                 check_msg.append('SubjectAlternativeName does not match: {}'.format(san_msg))
 
-            # TODO: Key Usage
-            # TODO: Extended Key Usage
+            # TODO: Check Key Usage
+            # TODO: Check Extended Key Usage
 
             checkCert.clean_up()
 
@@ -500,11 +629,13 @@ class CertMaster:
         self.logger.info(50 * '=')
         self.logger.info('Summary Report:')
         self.logger.info("Total Certificates: {}".format(self.stats['certificates']))
-        self.logger.info("Count Certificates LetsEncrypt: {}".format(self.stats['cert_total_LetsEncrypt']))
-        self.logger.info("Count Certificates LocalCA: {}".format(self.stats['cert_total_LocalCA']))
-        self.logger.info("Total FQDN's (CN + SAN): {}".format(self.stats['fqdns']))
+        self.logger.info("Total FQDNs (CN + SAN): {}".format(self.stats['fqdns']))
+        self.logger.info("Count LetsEncrypt Certificates: {}".format(self.stats['cert_total_LetsEncrypt']))
+        self.logger.info("Count LetsEncrypt FQDNs: {}".format(self.stats['cert_fqdn_LetsEncrypt']))
+        self.logger.info("Count LocalCA Certificates: {}".format(self.stats['cert_total_LocalCA']))
+        self.logger.info("Count LocalCA FQDNs: {}".format(self.stats['cert_fqdn_LocalCA']))
         self.logger.info("Certificates with configuration failures: {}".format(self.stats['cert_config_error']))
-        self.logger.info("Certificates 'valid and matching configuration': {}".format(self.stats['cert_check_successful']))
+        self.logger.info("Certificates valid and matching configuration: {}".format(self.stats['cert_check_successful']))
         self.logger.info("Certificates to create/reissue: {}".format(self.stats['cert_check_renew']))
         self.logger.info("Certificates successfully created/reissued: {}".format(self.stats['cert_renew_successful']))
         self.logger.info("Certificates failed to create/reissue: {}".format(self.stats['cert_renew_failed']))
