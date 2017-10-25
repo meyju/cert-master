@@ -628,12 +628,12 @@ class CertMaster:
 
     def _check_baseconfig(self):
         # Interpret Percentage Value for 'Lifetime Left'
-        if 'cert_renew_lifetime_left' in self.baseconfig['LetsEncrypt']:
+        if 'cert_renew_lifetime_left' in self.baseconfig['LetsEncrypt'] and isinstance(self.baseconfig['LetsEncrypt']['cert_renew_lifetime_left'], str):
             if '%' in self.baseconfig['LetsEncrypt']['cert_renew_lifetime_left']:
                 self.baseconfig['LetsEncrypt']['cert_renew_lifetime_left'] = float(
                     self.baseconfig['LetsEncrypt']['cert_renew_lifetime_left'].strip('%')) / 100.0
 
-        if 'cert_renew_lifetime_left' in self.baseconfig['LocalCA']:
+        if 'cert_renew_lifetime_left' in self.baseconfig['LocalCA'] and isinstance(self.baseconfig['LocalCA']['cert_renew_lifetime_left'], str):
             if '%' in self.baseconfig['LocalCA']['cert_renew_lifetime_left']:
                 self.baseconfig['LocalCA']['cert_renew_lifetime_left'] = float(
                     self.baseconfig['LocalCA']['cert_renew_lifetime_left'].strip('%')) / 100.0
