@@ -10,6 +10,7 @@ Route53:
 
 ca:
   LetsEncrypt:
+    type: 'acme'
     account_key: 'conf/LetsEncrypt.pem'
     account_key_passphrase: 'passphrase'
     Issuer_Name: "Let's Encrypt Authority"
@@ -18,6 +19,7 @@ ca:
 
   LocalCA:
     Issuer_Name: "My Intermidiate CA 1"
+    type: 'local'
     cert_subject_default:
       ORGANIZATION: 'My Organization'
       ORGANIZATIONAL_UNIT: 'IT'
@@ -26,7 +28,7 @@ ca:
       LOCALITY: 'MyTown'
       EMAIL: 'noc@example.com'
     cert_expire_days: 90
-    cert_renew_lifetime_left: 0.33
+    cert_renew_lifetime_left: 33%
     cert_renew_days_left: 30
     Key: 'conf/MY_Intermidiate_CA_1.key'
     KeyPassphrase: 'passphrase'
