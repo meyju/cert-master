@@ -91,6 +91,7 @@ class CaLetsEncrypt:
     def get_acme_authorization(self, domain, san=[]):
         acme_authorizations=[domain]
         acme_authorizations += san
+        acme_authorizations = list(set(acme_authorizations))
         all_success = True
         for fqdn in acme_authorizations:
             try:
@@ -104,7 +105,7 @@ class CaLetsEncrypt:
 
         return all_success
 
-    def challenge_acme_authorizations(self, force_renew=False, dns_client="Route53",):
+    def challenge_acme_authorizations(self, force_renew=False, dns_client="Route53"):
         ''' Challenge all existing ACME Authorizations
 
         :Args:
@@ -199,7 +200,7 @@ class CaLetsEncrypt:
 
     def request_certificate(self,domain):
         self.cert = MyCertificate(logger=self.logger)
-        self.cert.generateNewCSR(with_new_key=True,fqdn=domain['Domain'],san=domain['AlternativeName'])
+        self.cert.generateNewCSR(with_new_key=True,fqdn=domain.cert,san=domain.san)
 
         ComparableCSR = self.cert.getComparableCSR()
 
@@ -210,7 +211,7 @@ class CaLetsEncrypt:
         try:
             (certificate, ar) = self.acme.poll_and_request_issuance(ComparableX509(ComparableCSR), all_authorizations)
         except errors.PollError as e:
-            self.logger.error("Failed to get certificate issuance for '{0}'.".format(domain['name']))
+            self.logger.error("Failed to get certificate issuance for '{0}'.".format(domain.cert))
             self.logger.error("Error: {0}".format(e))
             return False
 
@@ -235,10 +236,10 @@ class CaLetsEncrypt:
     def save_certificates_and_key(self, domain):
         # Save all
         self.logger.info('Saving recived LetsEnrypt certificates and key')
-        self.cert.saveKeyAsPEM(domain['save_path'] + domain['Domain']+'_'+self.cert.keytype.lower()+".key")
-        self.cert.saveCrtAsPEM(domain['save_path'] + domain['Domain'] + '_' + self.cert.keytype.lower() + ".crt.pem")
-        self.cert.saveIntermediateAsPEM(domain['save_path'] + domain['Domain'] + '_' + self.cert.keytype.lower() + ".intermediate.pem")
-        self.cert.saveChainAsPEM(domain['save_path'] + domain['Domain'] + '_' + self.cert.keytype.lower() + ".chain.pem")
+        self.cert.saveKeyAsPEM(domain.file_save_path + domain.cert + '_' + self.cert.keytype.lower()+".key")
+        self.cert.saveCrtAsPEM(domain.file_save_path + domain.cert + '_' + self.cert.keytype.lower() + ".crt.pem")
+        self.cert.saveIntermediateAsPEM(domain.file_save_path + domain.cert + '_' + self.cert.keytype.lower() + ".intermediate.pem")
+        self.cert.saveChainAsPEM(domain.file_save_path + domain.cert + '_' + self.cert.keytype.lower() + ".chain.pem")
         return True
 
     def setRoute53(self,obj):

@@ -8,25 +8,26 @@ Route53:
   aws_accesskey: xxxxxxxxxxxxxxxxxx
   aws_secretkey: xxxxxxxxxxxxxxxxxx
 
-LetsEncrypt:
-  account_key: 'conf/LetsEncrypt.pem'
-  account_key_passphrase: 'passphrase'
-  Issuer_Name: "Let's Encrypt Authority"
-  cert_renew_lifetime_left: 0.33 # 1/3
-  cert_renew_days_left: 30
+ca:
+  LetsEncrypt:
+    account_key: 'conf/LetsEncrypt.pem'
+    account_key_passphrase: 'passphrase'
+    Issuer_Name: "Let's Encrypt Authority"
+    cert_renew_lifetime_left: 0.33 # 1/3
+    cert_renew_days_left: 30
 
-LocalCA:
-  Issuer_Name: "My Intermidiate CA 1"
-  cert_subject_default:
-    ORGANIZATION: 'My Organization'
-    ORGANIZATIONAL_UNIT: 'IT'
-    COUNTRY: 'DE'
-    STATE: 'Bayern'
-    LOCALITY: 'MyTown'
-    EMAIL: 'noc@example.com'
-  cert_expire_days: 90
-  cert_renew_lifetime_left: 0.33
-  cert_renew_days_left: 30
-  Key: 'conf/MY_Intermidiate_CA_1.key'
-  KeyPassphrase: 'passphrase'
-  Cert: 'conf/MY_Intermidiate_CA_1.crt'
+  LocalCA:
+    Issuer_Name: "My Intermidiate CA 1"
+    cert_subject_default:
+      ORGANIZATION: 'My Organization'
+      ORGANIZATIONAL_UNIT: 'IT'
+      COUNTRY: 'DE'
+      STATE: 'Bayern'
+      LOCALITY: 'MyTown'
+      EMAIL: 'noc@example.com'
+    cert_expire_days: 90
+    cert_renew_lifetime_left: 0.33
+    cert_renew_days_left: 30
+    Key: 'conf/MY_Intermidiate_CA_1.key'
+    KeyPassphrase: 'passphrase'
+    Cert: 'conf/MY_Intermidiate_CA_1.crt'

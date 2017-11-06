@@ -14,12 +14,21 @@ Stage: "stage"
 Sub: "web"
 Domain: "test.example.com"
 ---
+#Costumer: "Costumer1"
+#Stage: "stage"
+#Sub: "web"
+#Domain: "test.example.com"
+---
 Costumer: "Local"
 Stage: "dev"
 Domain: "dev.example.local"
 CA: "LocalCA"
+validity_days: 14
 subject:
   ORGANIZATION: 'My Organization'
-    ORGANIZATIONAL_UNIT: 'Development'
-    EMAIL: 'noc+development@example.com'
+  ORGANIZATIONAL_UNIT: 'IT'
+  COUNTRY: 'DE'
+  STATE: 'Bayern'
+  LOCALITY: 'MyTown'
+  EMAIL: 'noc+certificates@example.com'
 ---

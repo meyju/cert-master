@@ -15,6 +15,7 @@ from cert_master.route53 import r53
 from cert_master.ca_LetsEncrypt import CaLetsEncrypt
 from cert_master.ca_Local import CaLocal
 from cert_master.certificate import MyCertificate
+from cert_master.configs import BaseConfig, CertConfig
 
 PROG='cert-master'
 
@@ -28,22 +29,10 @@ class CertMaster:
         logger = logging.getLogger(__name__)
 
         self.logger = logger
-        self.stats =  {}
-        self.stats['certificates'] = 0
-        self.stats['fqdns'] = 0
-        self.stats['cert_config_error'] = 0
-        self.stats['cert_total_LetsEncrypt'] = 0
-        self.stats['cert_fqdn_LetsEncrypt'] = 0
-        self.stats['cert_total_LocalCA'] = 0
-        self.stats['cert_fqdn_LocalCA'] = 0
-        self.stats['cert_check_successful'] = 0
-        self.stats['cert_check_renew'] = 0
-        self.stats['cert_renew_successful'] = 0
-        self.stats['cert_renew_failed'] = 0
 
         self.args = None
         self.baseconfig = None
-        self.domainconfig = None
+        self.certconfig = None
         self.DNS_Route53 = None
 
         logger.info('startup program ' + PROG)
@@ -179,52 +168,53 @@ class CertMaster:
 
     def cert(self):
         self.logger.debug('CertMaster CERT')
+        # TODO: Write Function for only one/a view certificates in bot-function with filter on startup
+        self.logger.error('Functionality not implementet')
 
-        self._loadConfigs()
-
-        # Connect to Route53:
-        self._ConnectDNSRoute53()
-
-
-
-        self.logger.info('startup complete, checking now certificate')
-        for domain in self.domainconfig:
-            if domain['Domain'] in self.args.certificate:
-                self.logger.debug('Domain found in config')
-                break
-            else:
-                continue
-
-        (domain, validation_error) = self._validate_and_fillup_with_defaults(domain)
-        if validation_error is not False:
-            self.logger.error('Vailidation failure: {}'.format(validation_error))
-            if 'Domain' not in domain:
-                self.logger.error('skipping faulty configuration! {}'.format(domain))
-            else:
-                self.logger.error('skipping "{}" certificate!'.format(domain['Domain']))
-            return False
-        self.logger.info('Certificat (CN/Domain): {}'.format(domain['Domain']))
-        self.logger.debug('Domainconfig: {}'.format(domain))
-
-        # Create Save Directory if it not exists:
-        try:
-            os.makedirs(domain['save_path'], exist_ok=True)
-        except Exception as e:
-            self.logger.error('could not create directory "{}" for certificate: {}'.format(domain['save_path'], e))
-            self.logger.error('skipping "{}" certificate!'.format(domain['Domain']))
-
-        # Check if Create or Renew Certificate
-        (check_result, check_msg) = self._checkCertificate(domain)
-        if check_result is True and domain['force_renew'] == False and self.args.force_renew == False:
-            self.logger.info('Certificate "{}" is valid and matches configuration.'.format(domain['Domain']))
-        else:
-            for msg in check_msg:
-                self.logger.warning('Certificate "{}" - {}'.format(domain['Domain'], msg))
-            if domain['force_renew'] == True or self.args.force_renew == True:
-                self.logger.warning('Certificate "{}" - Forced to renew'.format(domain['Domain']))
-            self.logger.info('Certificate "{}" has to be created/reissued.'.format(domain['Domain']))
-
-        self._createCertificate(domain)
+        # self._loadConfigs()
+        #
+        # # Connect to Route53:
+        # self._ConnectDNSRoute53()
+        #
+        #
+        # self.logger.info('startup complete, checking now certificate')
+        # for domain in self.domainconfig:
+        #     if domain['Domain'] in self.args.certificate:
+        #         self.logger.debug('Domain found in config')
+        #         break
+        #     else:
+        #         continue
+        #
+        # (domain, validation_error) = self._validate_and_fillup_with_defaults(domain)
+        # if validation_error is not False:
+        #     self.logger.error('Vailidation failure: {}'.format(validation_error))
+        #     if 'Domain' not in domain:
+        #         self.logger.error('skipping faulty configuration! {}'.format(domain))
+        #     else:
+        #         self.logger.error('skipping "{}" certificate!'.format(domain['Domain']))
+        #     return False
+        # self.logger.info('Certificat (CN/Domain): {}'.format(domain['Domain']))
+        # self.logger.debug('Domainconfig: {}'.format(domain))
+        #
+        # # Create Save Directory if it not exists:
+        # try:
+        #     os.makedirs(domain['save_path'], exist_ok=True)
+        # except Exception as e:
+        #     self.logger.error('could not create directory "{}" for certificate: {}'.format(domain['save_path'], e))
+        #     self.logger.error('skipping "{}" certificate!'.format(domain['Domain']))
+        #
+        # # Check if Create or Renew Certificate
+        # (check_result, check_msg) = self._checkCertificate(domain)
+        # if check_result is True and domain['force_renew'] == False and self.args.force_renew == False:
+        #     self.logger.info('Certificate "{}" is valid and matches configuration.'.format(domain['Domain']))
+        # else:
+        #     for msg in check_msg:
+        #         self.logger.warning('Certificate "{}" - {}'.format(domain['Domain'], msg))
+        #     if domain['force_renew'] == True or self.args.force_renew == True:
+        #         self.logger.warning('Certificate "{}" - Forced to renew'.format(domain['Domain']))
+        #     self.logger.info('Certificate "{}" has to be created/reissued.'.format(domain['Domain']))
+        #
+        # self._createCertificate(domain)
 
 
 
@@ -235,7 +225,7 @@ class CertMaster:
 
         # TODO: Check Generic Default Config
         # TODO: Check CAs Default Config
-        self._check_baseconfig()
+        #self._check_baseconfig()
 
         # TODO: Check LE Account/Connection
         # TODO: Check AWS Route53 Account/Connection
@@ -243,68 +233,58 @@ class CertMaster:
         # Connect to Route53:
         self._ConnectDNSRoute53()
 
-
-
         self.logger.info('startup complete, checking now for certificates')
 
         threading_tasks = []
 
-        for domain in self.domainconfig:
-            self.stats['certificates'] += 1
+        for domain in self.certconfig:
             self.logger.info(50 * '=')
 
-            # Append Defaults
+            # Validate Cert Config / Append Defaults
             (domain, validation_error) = self._validate_and_fillup_with_defaults(domain)
-            if domain['CA'] == "LetsEncrypt":
-                self.stats['cert_total_LetsEncrypt'] += 1
-                self.stats['cert_fqdn_LetsEncrypt'] += (1 + len(domain['AlternativeName']))
-            elif domain['CA'] == "LocalCA":
-                self.stats['cert_total_LocalCA'] += 1
-                self.stats['cert_fqdn_LocalCA'] += (1 + len(domain['AlternativeName']))
+
+            self.baseconfig.stats_ca_increment_certs(domain.ca, increment=1)
+            self.baseconfig.stats_ca_increment_fqdns(domain.ca, increment=len(domain.san))
+
             if validation_error is not False:
                 self.logger.error('Vailidation failure: {}'.format(validation_error))
-                if 'Domain' not in domain:
+                if domain.cert is None:
                     self.logger.error('skipping faulty configuration! {}'.format(domain))
                 else:
-                    self.logger.error('skipping "{}" certificate!'.format(domain['Domain']))
-
-                self.stats['cert_config_error'] += 1
+                    self.logger.error('skipping "{}" certificate!'.format(domain.cert))
+                self.baseconfig.stats_ca_increment_config_error(domain.ca, increment=1)
                 continue
 
-            self.logger.info('Certificat (CN/Domain): {}'.format(domain['Domain']))
+            self.logger.info('Certificat (CN/Domain): {}'.format(domain.cert))
             self.logger.debug('Domainconfig: {}'.format(domain))
-            self.stats['fqdns'] += (1 + len(domain['AlternativeName']))
 
             # Create Save Directory if it not exists:
             try:
-                os.makedirs(domain['save_path'], exist_ok=True)
+                os.makedirs(domain.file_save_path, exist_ok=True)
             except Exception as e:
-                self.logger.error('could not create directory "{}" for certificate: {}'.format(domain['save_path'], e))
-                self.logger.error('skipping "{}" certificate!'.format(domain['Domain']))
+                self.logger.error('could not create directory "{}" for certificate: {}'.format(domain.file_save_path, e))
+                self.logger.error('skipping "{}" certificate!'.format(domain.cert))
                 continue
 
             # Check if Create or Renew Certificate
             (check_result, check_msg) = self._checkCertificate(domain)
-            if check_result is True and domain['force_renew'] == False:
-                self.logger.info('Certificate "{}" is valid and matches configuration.'.format(domain['Domain']))
-                self.stats['cert_check_successful'] += 1
-                continue
+            if check_result is True and domain.force_renew == False:
+                self.logger.info('Certificate "{}" is valid and matches configuration.'.format(domain.cert))
+                self.baseconfig.stats_ca_increment_check_successful(domain.ca)
             else:
                 for msg in check_msg:
-                    self.logger.warning('Certificate "{}" - {}'.format(domain['Domain'], msg))
-                if domain['force_renew'] == True:
-                    self.logger.warning('Certificate "{}" - Forced to renew'.format(domain['Domain']))
-                self.logger.info('Certificate "{}" has to be created/reissued.'.format(domain['Domain']))
-                self.stats['cert_check_renew'] += 1
+                    self.logger.warning('Certificate "{}" - {}'.format(domain.cert, msg))
+                if domain.force_renew == True:
+                    self.logger.warning('Certificate "{}" - Forced to renew'.format(domain.cert))
+                self.logger.info('Certificate "{}" has to be created/reissued.'.format(domain.cert))
+                self.baseconfig.stats_ca_increment_to_renew(domain.ca)
 
-            # Create or Renew Certificate
-            if self.args.multiprocessing:
-                threading_tasks.append(domain)
-            else:
-                self._createCertificate(domain)
+                # Create or Renew Certificate
+                if self.args.multiprocessing:
+                    threading_tasks.append(domain)
+                else:
+                    self._createCertificate(domain)
 
-            # Reset for next Loop
-            domain = None
 
         # Run Certificate Creation in parallel if configured
         if self.args.multiprocessing and len(threading_tasks) > 0:
@@ -322,12 +302,12 @@ class CertMaster:
             duration = int(float(end - start))
             self.logger.info("Multiprocessing with {0} Threads - Duration: {1}".format(threads, timedelta(seconds=duration)))
 
-        self._logStats()
+        rc = self._logStats()
 
-        if self.stats['cert_renew_failed'] > 0:
+        if rc == 'error':
             self.logger.info(PROG + ' finished with errors - Quit')
             sys.exit(2)
-        elif self.stats['cert_config_error'] > 0:
+        elif rc == 'warn':
             self.logger.info(PROG + ' finished with warnings - Quit')
             sys.exit(1)
         else:
@@ -336,9 +316,9 @@ class CertMaster:
 
     def _ConnectDNSRoute53(self):
         try:
-            if self.baseconfig['Route53']['aws_accesskey'] and self.baseconfig['Route53']['aws_secretkey']:
-                self.logger.debug('aws accesskey: {}'.format(self.baseconfig['Route53']['aws_accesskey']))
-                self.DNS_Route53 = r53(self.baseconfig['Route53']['aws_accesskey'], self.baseconfig['Route53']['aws_secretkey'], logger=self.logger)
+            if self.baseconfig.dns_route53_aws_accesskey and self.baseconfig.dns_route53_aws_secretkey:
+                self.logger.debug('connecting to aws route53 with accesskey: {}'.format(self.baseconfig.dns_route53_aws_accesskey))
+                self.DNS_Route53 = r53(self.baseconfig.dns_route53_aws_accesskey, self.baseconfig.dns_route53_aws_secretkey, logger=self.logger)
             else:
                 self.DNS_Route53 = r53(logger=self.logger)
             self.DNS_Route53.enable_connection()
@@ -401,42 +381,42 @@ class CertMaster:
     def _loadConfigs(self):
         self.logger.debug('using config file: {}'.format(self.args.config))
         with open(self.args.config, 'r') as fstream:
-            self.baseconfig = self._VerifiyCamelCase(yaml.load(fstream))
+            self.baseconfig = BaseConfig(logger=self.logger, BaseConfig=yaml.load(fstream))
 
         # loading yaml config for domains
-        self.domainconfig = []
-        files = os.listdir(self.baseconfig['Generic']['confdirectory'])
+        self.certconfig = []
+        files = os.listdir(self.baseconfig.config_directory)
         for f in files:
             if f.endswith('.yaml'):
-                conffile = open(self.baseconfig['Generic']['confdirectory'] + f, "r")
+                conffile = open(self.baseconfig.config_directory + f, "r")
                 docs = yaml.load_all(conffile)
                 for doc in docs:
-                    self.domainconfig.append(doc)
-
-        # Remove 'None' elements from domainconfig <- happens if there are yaml splits '---' without content
-        self.domainconfig = list(filter(None.__ne__, self.domainconfig))
+                    # TODO: Filter if not BOT mode
+                    if doc is not None:
+                        self.certconfig.append(CertConfig(CertConfig=doc, BaseConfig=self.baseconfig))
 
 
     def _createCertificate(self, domain):
-        self.logger.info('Requesting Certificate for "{}"'.format(domain['Domain']))
-        if domain['CA'] == "LetsEncrypt":
+        self.logger.info('Requesting Certificate for "{}"'.format(domain.cert))
+        # TODO: Make generic !!!! Selecting by CA Type
+        if domain.ca == "letsencrypt":
             self.logger.info('Requesting Certificate signed by CA: LetsEncrypt')
             res = self._useLetsEncryptCA(domain)
             if res == False:
-                self.stats['cert_renew_failed'] += 1
+                self.baseconfig.stats_ca_increment_renew_failed(domain.ca)
             else:
-                self.stats['cert_renew_successful'] += 1
-        elif domain['CA'] == "LocalCA":
+                self.baseconfig.stats_ca_increment_renew_success(domain.ca)
+        elif domain.ca == "localca":
             self.logger.info('Requesting Certificate signed by CA: LocalCA')
             res = self._useLocalCA(domain)
             if res == False:
-                self.stats['cert_renew_failed'] += 1
+                self.baseconfig.stats_ca_increment_renew_failed(domain.ca)
             else:
-                self.stats['cert_renew_successful'] += 1
+                self.baseconfig.stats_ca_increment_renew_success(domain.ca)
         else:
-            self.logger.error('Unknown CA "{}" requested for Certificate signing!'.format(domain['CA']))
+            self.logger.error('Unknown CA "{}" requested for Certificate signing!'.format(domain.ca))
 
-        self.logger.info('Requesting Certificate for "{}" finished'.format(domain['Domain']))
+        self.logger.info('Requesting Certificate for "{}" finished'.format(domain.cert))
 
     def _checkCertificate(self, domain):
         ''' Checking if the certificate is valid and matches configuration
@@ -455,9 +435,9 @@ class CertMaster:
         check_result = True
         check_msg = []
 
-        for keytype in domain['keytype']:
-            cert_file = domain['save_path'] + domain['Domain'] + '_' + keytype.lower() + ".crt.pem"
-            key_file = domain['save_path'] + domain['Domain'] + '_' + keytype.lower() + ".key"
+        for keytype in domain.key_type:
+            cert_file = domain.file_save_path + domain.cert + '_' + keytype.lower() + ".crt.pem"
+            key_file = domain.file_save_path + domain.cert + '_' + keytype.lower() + ".key"
             if not os.path.isfile(cert_file):
                 check_result = False
                 check_msg.append('Certification File can not be found: {}'.format(cert_file))
@@ -478,13 +458,8 @@ class CertMaster:
                 continue
 
             # Check Issuer
-            if domain['CA'] == 'LetsEncrypt':
-                checkIssuerIs = self.baseconfig['LetsEncrypt']['Issuer_Name']
-            elif domain['CA'] == 'LocalCA':
-                checkIssuerIs = self.baseconfig['LocalCA']['Issuer_Name']
-            else:
-                checkIssuerIs = None
-            if domain['CA'] is not None:
+            checkIssuerIs = self.baseconfig.get_ca_issuer_name(domain.ca)
+            if checkIssuerIs is not None:
                 if not checkCert.checkCertIssuerContains(checkIssuerIs):
                     check_result = False
                     check_msg.append('not issued by {})'.format(domain['CA']))
@@ -494,22 +469,14 @@ class CertMaster:
                 check_result = False
                 check_msg.append('has expired')
             else:
-                check_lifetime = False
-                check_days_left = False
-                if domain['CA'] == 'LetsEncrypt':
-                    if 'cert_renew_lifetime_left' in self.baseconfig['LetsEncrypt']:
-                        check_lifetime = self.baseconfig['LetsEncrypt']['cert_renew_lifetime_left']
-                    elif 'cert_renew_days_left' in self.baseconfig['LetsEncrypt']:
-                        check_days_left = self.baseconfig['LetsEncrypt']['cert_renew_days_left']
-                elif domain['CA'] == 'LocalCA':
-                    if 'cert_renew_lifetime_left' in self.baseconfig['LocalCA']:
-                        check_lifetime = self.baseconfig['LocalCA']['cert_renew_lifetime_left']
-                    elif 'cert_renew_days_left' in self.baseconfig['LocalCA']:
-                        check_days_left = self.baseconfig['LocalCA']['cert_renew_days_left']
+                check_lifetime = self.baseconfig.get_ca_renew_lifetime_left(domain.ca)
+                check_days_left = self.baseconfig.get_ca_renew_days_left(domain.ca)
+
                 # Set Fallback Default 10% lifetime left
-                if check_lifetime == False and check_days_left == False:
+                if check_lifetime == None and check_days_left == None:
                     check_lifetime = 0.1
                 if check_days_left:
+                    # TODO: consider shorter liftime of some certificates
                     if not checkCert.checkCertDaysLeft(check_days_left):
                         check_result = False
                         check_msg.append('has lower then {} days left'.format(check_days_left))
@@ -521,12 +488,12 @@ class CertMaster:
             # TODO: Check Subject
 
             # Check Domain
-            if not checkCert.checkCertDomain(domain['Domain']):
+            if not checkCert.checkCertDomain(domain.cert):
                 check_result = False
                 check_msg.append('Domain does not match (CN)')
 
             # Check SAN
-            (san_result, san_msg) = checkCert.checkCertSAN(domain['Domain'], domain['AlternativeName'])
+            (san_result, san_msg) = checkCert.checkCertSAN(domain.cert, domain.san)
             if san_result == False:
                 check_result = False
                 check_msg.append('SubjectAlternativeName does not match: {}'.format(san_msg))
@@ -541,9 +508,9 @@ class CertMaster:
     def _useLocalCA(self, domain):
         # PrePare LetsEncrypt:
         LocalCA = CaLocal(logger=self.logger,
-                          caKeyFile=self.baseconfig['LocalCA']['Key'],
-                          caKeyPassphrase=self.baseconfig['LocalCA']['KeyPassphrase'],
-                          caCertFile=self.baseconfig['LocalCA']['Cert']
+                          caKeyFile=self.baseconfig.ca[self.baseconfig.ca_by_name[domain.ca]].key,
+                          caKeyPassphrase=self.baseconfig.ca[self.baseconfig.ca_by_name[domain.ca]].key_passphrase,
+                          caCertFile=self.baseconfig.ca[self.baseconfig.ca_by_name[domain.ca]].cert
                           )
 
         # Get Certificate
@@ -557,17 +524,17 @@ class CertMaster:
     def _useLetsEncryptCA(self, domain):
         # PrePare LetsEncrypt:
         leCA = CaLetsEncrypt(logger=self.logger, stageing=self.args.stage)
-        leCA.loadLEaccountKey(accountKeyFile=self.baseconfig['LetsEncrypt']['account_key'],
-                              accountKeyPassphrase=self.baseconfig['LetsEncrypt']['account_key_passphrase'])
+        leCA.loadLEaccountKey(accountKeyFile=self.baseconfig.ca[self.baseconfig.ca_by_name[domain.ca]].account_key,
+                              accountKeyPassphrase=self.baseconfig.ca[self.baseconfig.ca_by_name[domain.ca]].account_key_passphrase)
         leCA.loadJWKToken()
         leCA.acme_Connection()
         leCA.setRoute53(self.DNS_Route53)
 
         # Challenge ACME
-        leCA.get_acme_authorization(domain['Domain'], domain['AlternativeName'])
-        if domain['zone'] is not None:
-            leCA.setRoute53Zone(domain['zone'])
-        leCA.challenge_acme_authorizations(force_renew=domain['force_renew'])
+        leCA.get_acme_authorization(domain.cert, domain.san)
+        if domain.dns_zone is not None:
+            leCA.setRoute53Zone(domain.dns_zone)
+        leCA.challenge_acme_authorizations(force_renew=domain.force_renew)
 
         # Get Certificate
         res = leCA.request_certificate(domain)
@@ -580,79 +547,60 @@ class CertMaster:
     def _validate_and_fillup_with_defaults(self, domain):
         validation_error = False
         # Check for minimum:
-        if 'Domain' not in domain:
+        if domain.cert == None:
             validation_error = "'Domain' is required"
 
-        # Check if exists - otherwise fill with defaults
-        if 'CA' not in domain:
-            domain['CA'] = self.baseconfig['Generic']['defaultCA']
-
-        if 'Subject' in domain:
-            domain['subject']
-        if 'subject' not in domain and domain['CA'] == 'LocalCA':
-            domain['subject'] = self.baseconfig['LocalCA']['cert_subject_default']
-        if 'subject' not in domain and domain['CA'] == 'LetsEncrypt':
+        # Todo: This shoud move to 'configs.CertConfig'
+        if domain.subject is None and domain.ca == 'LocalCA'.lower():
+            domain.subject = self.baseconfig.ca[self.baseconfig.ca_by_name['localca']].cert_default_subject
+        if domain.subject is not None and domain.ca == 'LetsEncrypt'.lower():
             # LetsEncrypt does not require any cert subject, because they just create DV certs
-            domain['subject'] = {}
-
-        if 'zone' not in domain:
-            domain['zone'] = None
-
-        if 'AlternativeName' not in domain:
-            domain['AlternativeName'] = []
-
-        if 'force_renew' in domain:
-            domain['force_renew'] = self._str2bool(domain['force_renew'])
-        else:
-            domain['force_renew'] = False
-
-        if 'keytype' not in domain:
-            domain['keytype'] = ['RSA']
-            # TODO: ECDSA keytype
-
-        if 'Costumer' not in domain:
-            domain['Costumer'] = ''
-
-        if 'Stage' not in domain:
-            domain['Stage'] = ''
-
-        if 'Sub' not in domain:
-            domain['Sub'] = ''
-
-        if 'save_path' not in domain:
-            domain['save_path'] = self.baseconfig['Generic']['certdirectory'] \
-                                  + '/' + domain['Costumer'] + '/' + domain['Stage'] + '/' + domain['Sub'] + '/'
-            domain['save_path'] = domain['save_path'].replace('//', '/')
+            domain.subject = None
 
         return (domain, validation_error)
 
-    def _check_baseconfig(self):
-        # Interpret Percentage Value for 'Lifetime Left'
-        if 'cert_renew_lifetime_left' in self.baseconfig['LetsEncrypt'] and isinstance(self.baseconfig['LetsEncrypt']['cert_renew_lifetime_left'], str):
-            if '%' in self.baseconfig['LetsEncrypt']['cert_renew_lifetime_left']:
-                self.baseconfig['LetsEncrypt']['cert_renew_lifetime_left'] = float(
-                    self.baseconfig['LetsEncrypt']['cert_renew_lifetime_left'].strip('%')) / 100.0
-
-        if 'cert_renew_lifetime_left' in self.baseconfig['LocalCA'] and isinstance(self.baseconfig['LocalCA']['cert_renew_lifetime_left'], str):
-            if '%' in self.baseconfig['LocalCA']['cert_renew_lifetime_left']:
-                self.baseconfig['LocalCA']['cert_renew_lifetime_left'] = float(
-                    self.baseconfig['LocalCA']['cert_renew_lifetime_left'].strip('%')) / 100.0
-
     def _logStats(self):
         self.logger.info(50 * '=')
+        self.logger.info('CA Report:')
+        total_stats = {}
+        total_stats['certs'] = 0
+        total_stats['fqdn'] = 0
+        total_stats['check_successful'] = 0
+        total_stats['to_renew'] = 0
+        total_stats['renew_success'] = 0
+        total_stats['renew_failed'] = 0
+        total_stats['config_error'] = 0
+        for ca in self.baseconfig.ca:
+            self.logger.info('CA "{}" Certificates: {}'.format(ca.issuer_name, ca.stats.certs))
+            total_stats['certs'] += ca.stats.certs
+            self.logger.info('CA "{}" FQDNs: {}'.format(ca.issuer_name, ca.stats.fqdn))
+            total_stats['fqdn'] += ca.stats.fqdn
+            self.logger.info('CA "{}" Certificates check successful(valid and matching configuration): {}'.format(ca.issuer_name, ca.stats.check_successful))
+            total_stats['check_successful'] += ca.stats.check_successful
+            self.logger.info('CA "{}" Certificates to create/reissue: {}'.format(ca.issuer_name, ca.stats.to_renew))
+            total_stats['to_renew'] += ca.stats.to_renew
+            self.logger.info('CA "{}" Certificates renew successful: {}'.format(ca.issuer_name, ca.stats.renew_success))
+            total_stats['renew_success'] += ca.stats.renew_success
+            self.logger.info('CA "{}" Certificates renew failed: {}'.format(ca.issuer_name, ca.stats.renew_failed))
+            total_stats['renew_failed'] += ca.stats.renew_failed
+            self.logger.info('CA "{}" Certificates with configuration failure: {}'.format(ca.issuer_name, ca.stats.config_error))
+            total_stats['config_error'] += ca.stats.config_error
+
+        self.logger.info(50 * '=')
         self.logger.info('Summary Report:')
-        self.logger.info("Total Certificates: {}".format(self.stats['certificates']))
-        self.logger.info("Total FQDNs (CN + SAN): {}".format(self.stats['fqdns']))
-        self.logger.info("Count LetsEncrypt Certificates: {}".format(self.stats['cert_total_LetsEncrypt']))
-        self.logger.info("Count LetsEncrypt FQDNs: {}".format(self.stats['cert_fqdn_LetsEncrypt']))
-        self.logger.info("Count LocalCA Certificates: {}".format(self.stats['cert_total_LocalCA']))
-        self.logger.info("Count LocalCA FQDNs: {}".format(self.stats['cert_fqdn_LocalCA']))
-        self.logger.info("Certificates with configuration failures: {}".format(self.stats['cert_config_error']))
-        self.logger.info("Certificates valid and matching configuration: {}".format(self.stats['cert_check_successful']))
-        self.logger.info("Certificates to create/reissue: {}".format(self.stats['cert_check_renew']))
-        self.logger.info("Certificates successfully created/reissued: {}".format(self.stats['cert_renew_successful']))
-        self.logger.info("Certificates failed to create/reissue: {}".format(self.stats['cert_renew_failed']))
+        self.logger.info('Total Certificates: {}'.format(total_stats['certs']))
+        self.logger.info('Total FQDNs: {}'.format(total_stats['fqdn']))
+        self.logger.info('Total Certificates check successful(valid and matching configuration): {}'.format(total_stats['check_successful']))
+        self.logger.info('Total Certificates to create/reissue: {}'.format(total_stats['to_renew']))
+        self.logger.info('Total Certificates renew successful: {}'.format(total_stats['renew_success']))
+        self.logger.info('Total Certificates renew failed: {}'.format(total_stats['renew_failed']))
+        self.logger.info('Total Certificates with configuration failure: {}'.format(total_stats['config_error']))
         self.logger.info(50 * '=')
 
-    def _str2bool(self, s):
-        return str(s).lower() in ("yes", "true", "t", "1")
+        if total_stats['renew_failed'] > 0:
+            return 'error'
+        elif total_stats['config_error'] > 0:
+            return 'warn'
+        else:
+            return True
+

@@ -43,7 +43,6 @@ class MyCertificate:
                 public_exponent=65537,
                 key_size=self.BITS,
                 backend=self.backend)
-
         elif self.keytype == "ECDSA":
             self.logger.error("ECDSA - NOT Implementet yet")
         else:
@@ -121,7 +120,7 @@ class MyCertificate:
     def _setPassphrase(self, value):
         self.passphrase = value
 
-    def generateNewCSR(self, fqdn, subject={}, san=None, with_new_key=False, KeyUsage=True, ExtendedKeyUsage=True):
+    def generateNewCSR(self, fqdn, subject=None, san=None, with_new_key=False, KeyUsage=True, ExtendedKeyUsage=True):
         """ Create a new CSR
 
         This function creates a new Certifcate Signing Request with the given inforamtion.
@@ -146,18 +145,19 @@ class MyCertificate:
         csr_subject = []
         if fqdn:
             csr_subject.append(x509.NameAttribute(x509.OID_COMMON_NAME, str(fqdn)))
-        if 'ORGANIZATION' in subject:
-            csr_subject.append(x509.NameAttribute(x509.OID_ORGANIZATION_NAME, str(subject['ORGANIZATION'])))
-        if 'ORGANIZATIONAL_UNIT' in subject:
-            csr_subject.append(x509.NameAttribute(x509.OID_ORGANIZATIONAL_UNIT_NAME, str(subject['ORGANIZATIONAL_UNIT'])))
-        if 'COUNTRY' in subject:
-            csr_subject.append(x509.NameAttribute(x509.OID_COUNTRY_NAME, str(subject['COUNTRY'].upper())))
-        if 'STATE' in subject:
-            csr_subject.append(x509.NameAttribute(x509.OID_STATE_OR_PROVINCE_NAME, str(subject['STATE']) ))
-        if 'LOCALITY' in subject:
-            csr_subject.append(x509.NameAttribute(x509.OID_LOCALITY_NAME, str(subject['LOCALITY'])))
-        if 'EMAIL' in subject:
-            csr_subject.append(x509.NameAttribute(x509.OID_EMAIL_ADDRESS, str(subject['EMAIL'])))
+        if subject is not None:
+            if subject.organization is not None:
+                csr_subject.append(x509.NameAttribute(x509.OID_ORGANIZATION_NAME, str(subject.organization)))
+            if subject.organizational_unit is not None:
+                csr_subject.append(x509.NameAttribute(x509.OID_ORGANIZATIONAL_UNIT_NAME, str(subject.organizational_unit)))
+            if subject.country is not None:
+                csr_subject.append(x509.NameAttribute(x509.OID_COUNTRY_NAME, str(subject.country.upper())))
+            if subject.state is not None:
+                csr_subject.append(x509.NameAttribute(x509.OID_STATE_OR_PROVINCE_NAME, str(subject.state) ))
+            if subject.locality is not None:
+                csr_subject.append(x509.NameAttribute(x509.OID_LOCALITY_NAME, str(subject.locality)))
+            if subject.email is not None:
+                csr_subject.append(x509.NameAttribute(x509.OID_EMAIL_ADDRESS, str(subject.email)))
 
         # Generate a CSR
         csr = x509.CertificateSigningRequestBuilder()
@@ -167,7 +167,6 @@ class MyCertificate:
         )
         # Adding SubjectAlternativeName
         adding_san = []
-        adding_san.append(x509.DNSName(fqdn))
         if san is not None:
             for s in san:
                 adding_san.append(x509.DNSName(s))
@@ -190,7 +189,7 @@ class MyCertificate:
         # Sign the CSR with our private key.
         self.csr = csr.sign(self.key, hashes.SHA256(), default_backend())
 
-    def generateNewCertFromCSRsignedByCA(self, SigningCA, SubjectKeyIdentifier=True, AuthorityKeyIdentifier=True):
+    def generateNewCertFromCSRsignedByCA(self, SigningCA, SubjectKeyIdentifier=True, AuthorityKeyIdentifier=True, validity_days=None, CaConfig=None):
 
         builder = x509.CertificateBuilder()
 
@@ -199,8 +198,14 @@ class MyCertificate:
         builder = builder.serial_number(x509.random_serial_number())
 
         # Valid Times:
+        if validity_days:
+            # TODO: Validate min and max period of signing ca
+            if validity_days > 0 and validity_days < 2*365:
+                days=validity_days
+        else:
+            days=SigningCA.cert_expire_days
         builder = builder.not_valid_before(datetime.today().replace(hour=0, minute=0, second=0, microsecond=0))
-        builder = builder.not_valid_after(datetime.utcnow().replace(second=0, microsecond=0) + timedelta(days=SigningCA.cert_expire_days))
+        builder = builder.not_valid_after(datetime.utcnow().replace(second=0, microsecond=0) + timedelta(days=days))
 
         # Takeover Details from CSR:
         builder = builder.subject_name(self.csr.subject)

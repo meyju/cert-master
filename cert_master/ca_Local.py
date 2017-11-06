@@ -75,25 +75,26 @@ class CaLocal:
         try:
 
             self.cert = MyCertificate(logger=self.logger)
-            self.cert.generateNewCSR(with_new_key=True,fqdn=domain['Domain'],san=domain['AlternativeName'], subject=domain['subject'])
+            self.cert.generateNewCSR(with_new_key=True,fqdn=domain.cert,san=domain.san, subject=domain.subject)
 
             # Sign CSR with LocalCA
             self.cert.setIntermediateCert(self.caCert.cert)
-            self.cert.generateNewCertFromCSRsignedByCA(self)
+            self.cert.generateNewCertFromCSRsignedByCA(self,validity_days=domain.validity_days,CaConfig=False)
 
             return True
         except Exception as e:
             self.logger.error(e)
             return False
 
-    def save_certificates_and_key(self, domain):
+    def save_certificates_and_key(self, domain, save_csr=False):
         # Save all
         self.logger.info('Saving recived LocalCA certificates and key')
-        #self.cert.saveCSRasPEM(domain['save_path'] + domain['Domain']+'_'+self.cert.keytype.lower()+".csr")
-        self.cert.saveKeyAsPEM(domain['save_path'] + domain['Domain']+'_'+self.cert.keytype.lower()+".key")
-        self.cert.saveCrtAsPEM(domain['save_path'] + domain['Domain'] + '_' + self.cert.keytype.lower() + ".crt.pem")
-        self.cert.saveIntermediateAsPEM(domain['save_path'] + domain['Domain'] + '_' + self.cert.keytype.lower() + ".intermediate.pem")
-        self.cert.saveChainAsPEM(domain['save_path'] + domain['Domain'] + '_' + self.cert.keytype.lower() + ".chain.pem")
+        if save_csr:
+            self.cert.saveCSRasPEM(domain.file_save_path + domain.cert + '_' + self.cert.keytype.lower() + ".csr")
+        self.cert.saveKeyAsPEM(domain.file_save_path + domain.cert + '_' + self.cert.keytype.lower() + ".key")
+        self.cert.saveCrtAsPEM(domain.file_save_path + domain.cert + '_' + self.cert.keytype.lower() + ".crt.pem")
+        self.cert.saveIntermediateAsPEM(domain.file_save_path + domain.cert + '_' + self.cert.keytype.lower() + ".intermediate.pem")
+        self.cert.saveChainAsPEM(domain.file_save_path + domain.cert + '_' + self.cert.keytype.lower() + ".chain.pem")
         return True
 
     def clean_up(self):
