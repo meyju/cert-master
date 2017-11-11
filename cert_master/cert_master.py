@@ -99,9 +99,9 @@ class CertMaster:
             formatter_class=Formatter,
         )
         cert.add_argument('--config', '-c', dest="config", help='YAML file with config', required=True)
-        cert.add_argument('--cert', '--certificate', dest='certificate', required=True, help='the configured Domain')
-        cert.add_argument('--force', '--force-renew', dest='force_renew', required=False, action='store_false',
-                          help='the configured Domain')
+        cert.add_argument('--cert', '--certificate', dest='certificate', required=True, help='the certificate')
+        cert.add_argument('--force', '--force-renew', dest='force_renew', required=False, action='store_true',
+                          help='force renew of this certificate')
         cert.add_argument('-v', '--verbose', default=0, action='count', help='Loglevel -vvv for debug')
         cert.set_defaults(mode='cert')
 
@@ -164,57 +164,14 @@ class CertMaster:
 
     def cert(self):
         self.logger.debug('CertMaster CERT')
-        # TODO: Write Function for only one/a view certificates in bot-function with filter on startup
-        self.logger.error('Functionality not implementet')
-
-        # self._loadConfigs()
-        #
-        # # Connect to Route53:
-        # self._ConnectDNSRoute53()
-        #
-        #
-        # self.logger.info('startup complete, checking now certificate')
-        # for domain in self.domainconfig:
-        #     if domain['Domain'] in self.args.certificate:
-        #         self.logger.debug('Domain found in config')
-        #         break
-        #     else:
-        #         continue
-        #
-        # (domain, validation_error) = self._validate_and_fillup_with_defaults(domain)
-        # if validation_error is not False:
-        #     self.logger.error('Vailidation failure: {}'.format(validation_error))
-        #     if 'Domain' not in domain:
-        #         self.logger.error('skipping faulty configuration! {}'.format(domain))
-        #     else:
-        #         self.logger.error('skipping "{}" certificate!'.format(domain['Domain']))
-        #     return False
-        # self.logger.info('Certificat (CN/Domain): {}'.format(domain['Domain']))
-        # self.logger.debug('Domainconfig: {}'.format(domain))
-        #
-        # # Create Save Directory if it not exists:
-        # try:
-        #     os.makedirs(domain['save_path'], exist_ok=True)
-        # except Exception as e:
-        #     self.logger.error('could not create directory "{}" for certificate: {}'.format(domain['save_path'], e))
-        #     self.logger.error('skipping "{}" certificate!'.format(domain['Domain']))
-        #
-        # # Check if Create or Renew Certificate
-        # (check_result, check_msg) = self._checkCertificate(domain)
-        # if check_result is True and domain['force_renew'] == False and self.args.force_renew == False:
-        #     self.logger.info('Certificate "{}" is valid and matches configuration.'.format(domain['Domain']))
-        # else:
-        #     for msg in check_msg:
-        #         self.logger.warning('Certificate "{}" - {}'.format(domain['Domain'], msg))
-        #     if domain['force_renew'] == True or self.args.force_renew == True:
-        #         self.logger.warning('Certificate "{}" - Forced to renew'.format(domain['Domain']))
-        #     self.logger.info('Certificate "{}" has to be created/reissued.'.format(domain['Domain']))
-        #
-        # self._createCertificate(domain)
+        self.logger.error('Running BOT with filter for given certificates')
+        # Set Disable Multiprocessing
+        self.args.multiprocessing = False
+        self.bot(only_filter_cert=self.args.certificate)
+        self.logger.debug('CertMaster CERT finished')
 
 
-
-    def bot(self):
+    def bot(self, only_filter_cert=None):
         self.logger.debug('CertMaster BOT')
 
         self._loadConfigs()
@@ -234,6 +191,14 @@ class CertMaster:
         threading_tasks = []
 
         for domain in self.certconfig:
+
+            if only_filter_cert:
+                if only_filter_cert != domain.cert:
+                    continue
+                else:
+                    # Overwrite force_renew with given args option
+                    domain.force_renew = self.args.force_renew
+
             self.logger.info(50 * '=')
 
             # Validate Cert Config / Append Defaults
@@ -298,17 +263,19 @@ class CertMaster:
             duration = int(float(end - start))
             self.logger.debug("Multiprocessing with {0} Threads finished - Duration: {1}".format(threads, timedelta(seconds=duration)))
 
-        rc = self._logStats()
+        # No Stats if in 'cert' Mode
+        if only_filter_cert == None:
+            rc = self._logStats()
 
-        if rc == 'error':
-            self.logger.info(PROG + ' finished with errors - Quit')
-            sys.exit(2)
-        elif rc == 'warn':
-            self.logger.info(PROG + ' finished with warnings - Quit')
-            sys.exit(1)
-        else:
-            self.logger.info(PROG + ' finished - Quit')
-            sys.exit(0)
+            if rc == 'error':
+                self.logger.info(PROG + ' finished with errors - Quit')
+                sys.exit(2)
+            elif rc == 'warn':
+                self.logger.info(PROG + ' finished with warnings - Quit')
+                sys.exit(1)
+            else:
+                self.logger.info(PROG + ' finished - Quit')
+                sys.exit(0)
 
     def _ConnectDNSRoute53(self):
         try:
