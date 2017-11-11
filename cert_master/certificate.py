@@ -140,7 +140,7 @@ class MyCertificate:
         if with_new_key:
             self.generateNewKey()
 
-        self.logger.info("Creating CSR for '" + str(fqdn) + "' with Extending SubjectAlternativeName's: " + str(san))
+        self.logger.info("Creating CSR for '" + str(fqdn) + "' with SubjectAlternativeName's: " + str(san))
 
         csr_subject = []
         if fqdn:
@@ -197,13 +197,16 @@ class MyCertificate:
         builder = builder.issuer_name(SigningCA.caCert.cert.subject)
         builder = builder.serial_number(x509.random_serial_number())
 
-        # Valid Times:
+        # Valid Times
         if validity_days:
-            # TODO: Validate min and max period of signing ca
-            if validity_days > 0 and validity_days < 2*365:
+            if validity_days > CaConfig.cert_expire_days_min and validity_days < CaConfig.cert_expire_days_max:
                 days=validity_days
+            elif validity_days < CaConfig.cert_expire_days_min:
+                days=CaConfig.cert_expire_days_min
+            elif validity_days > CaConfig.cert_expire_days_max:
+                days = CaConfig.cert_expire_days_max
         else:
-            days=SigningCA.cert_expire_days
+            days=CaConfig.cert_expire_days_default
         builder = builder.not_valid_before(datetime.today().replace(hour=0, minute=0, second=0, microsecond=0))
         builder = builder.not_valid_after(datetime.utcnow().replace(second=0, microsecond=0) + timedelta(days=days))
 
@@ -237,17 +240,6 @@ class MyCertificate:
                 x509.AuthorityKeyIdentifier.from_issuer_public_key(SigningCA.caCert.cert.public_key()),
                 critical=False
                 )
-
-            # TODO: Add AuthorityKeyIdentifier with key_identifier, authority_cert_issuer, authority_cert_serial_number
-            # e.G.
-            # # builder = builder.add_extension(
-            #     x509.AuthorityKeyIdentifier(
-            #         x509.AuthorityKeyIdentifier.from_issuer_public_key(SigningCA.caCert.cert.public_key()),
-            #         SigningCA.caCert.cert.subject,
-            #         SigningCA.caCert.cert.serial,
-            #     ),
-            #     critical=False,
-            # )
 
         # Finally Sign the Certificate
         self.cert = builder.sign(
@@ -345,6 +337,16 @@ class MyCertificate:
             return True
         else:
             return False
+
+
+    def getCertDaysLeft(self):
+        days_left = self.cert.not_valid_after - datetime.utcnow()
+        return days_left.days
+
+
+    def getCertValidity(self):
+        validity = self.cert.not_valid_after - self.cert.not_valid_before
+        return validity.days
 
 
     def checkCertLifetimeProceed(self, progress=0.33):

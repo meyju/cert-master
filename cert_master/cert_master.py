@@ -326,57 +326,6 @@ class CertMaster:
         except:
             return False
 
-    def _VerifiyCamelCase(self,x, recusiv=True):
-        r = {}
-        for k, v in x.items():
-            if isinstance(v, dict) and recusiv == True:
-                v = self._VerifiyCamelCase(v)
-            if isinstance(k, str):
-                if k.lower() == 'domain':
-                    r['Domain'] = v
-                elif k.lower() == 'letsencrypt':
-                    r['LetsEncrypt'] = v
-                elif k.lower() == 'localca':
-                    r['LocalCA'] = v
-                elif k.lower() == 'key':
-                    r['Key'] = v
-                elif k.lower() == 'keypassphrase':
-                    r['KeyPassphrase'] = v
-                elif k.lower() == 'cert':
-                    r['Cert'] = v
-                elif k.lower() == 'generic':
-                    r['Generic'] = v
-                elif k.lower() == 'ca':
-                    r['CA'] = v
-                elif k.lower() == 'defaultca':
-                    r['defaultCA'] = v
-                elif k.lower() == 'issuer_name':
-                    r['Issuer_Name'] = v
-                elif k.lower() == 'costumer':
-                    r['Costumer'] = v
-                elif k.lower() == 'stage':
-                    r['Stage'] = v
-                elif k.lower() == 'sub':
-                    r['Sub'] = v
-                elif k.lower() == 'alternativename':
-                    r['AlternativeName'] = v
-                elif k.lower() == 'organization':
-                    r['ORGANIZATION'] = v
-                elif k.lower() == 'organizational_unit':
-                    r['ORGANIZATIONAL_UNIT'] = v
-                elif k.lower() == 'country':
-                    r['COUNTRY'] = v
-                elif k.lower() == 'state':
-                    r['STATE'] = v
-                elif k.lower() == 'locality':
-                    r['LOCALITY'] = v
-                elif k.lower() == 'email':
-                    r['EMAIL'] = v
-                else:
-                    r[k.lower()] = v
-            else:
-                r[k] = v
-        return r
 
     def _loadConfigs(self):
         self.logger.debug('using config file: {}'.format(self.args.config))
@@ -417,6 +366,7 @@ class CertMaster:
             self.logger.error('Unknown CA "{}" requested for Certificate signing!'.format(domain.ca))
 
         self.logger.info('Requesting Certificate for "{}" finished'.format(domain.cert))
+
 
     def _checkCertificate(self, domain):
         ''' Checking if the certificate is valid and matches configuration
@@ -471,19 +421,29 @@ class CertMaster:
             else:
                 check_lifetime = self.baseconfig.get_ca_renew_lifetime_left(domain.ca)
                 check_days_left = self.baseconfig.get_ca_renew_days_left(domain.ca)
+                cert_validity = checkCert.getCertValidity()
 
+                # TODO: set defalut on configs -> CaConfig if nothing is specificed
                 # Set Fallback Default 10% lifetime left
                 if check_lifetime == None and check_days_left == None:
                     check_lifetime = 0.1
-                if check_days_left:
-                    # TODO: consider shorter liftime of some certificates
-                    if not checkCert.checkCertDaysLeft(check_days_left):
-                        check_result = False
-                        check_msg.append('has lower then {} days left'.format(check_days_left))
-                elif check_lifetime:
+
+                if check_lifetime:
                     if not checkCert.checkCertLifetimeProceed(check_lifetime):
                         check_result = False
                         check_msg.append('has lower then {0:.0f}% lifetime left'.format(check_lifetime * 100))
+                elif check_days_left and cert_validity > check_days_left:
+                    if not checkCert.checkCertDaysLeft(check_days_left):
+                        check_result = False
+                        check_msg.append('has lower then {} days left'.format(check_days_left))
+                elif check_days_left and cert_validity < check_days_left:
+                    # When cert validity is lower then the ca configured minimum day - check lifetime 10% as fallback
+                    check_lifetime = 0.1
+                    if not checkCert.checkCertLifetimeProceed(check_lifetime):
+                        check_result = False
+                        check_msg.append('has lower then {0:.0f}% lifetime left'.format(check_lifetime * 100))
+                        check_msg.append('certificate validity is lower then the days ' +
+                                         'configured at CA level (cert_expire_days)!')
 
             # TODO: Check Subject
 
