@@ -507,11 +507,7 @@ class CertMaster:
 
     def _useLocalCA(self, domain):
         # PrePare LetsEncrypt:
-        LocalCA = CaLocal(logger=self.logger,
-                          caKeyFile=self.baseconfig.ca[self.baseconfig.ca_by_name[domain.ca]].key,
-                          caKeyPassphrase=self.baseconfig.ca[self.baseconfig.ca_by_name[domain.ca]].key_passphrase,
-                          caCertFile=self.baseconfig.ca[self.baseconfig.ca_by_name[domain.ca]].cert
-                          )
+        LocalCA = CaLocal(logger=self.logger, ca=self.baseconfig.ca[self.baseconfig.ca_by_name[domain.ca]])
 
         # Get Certificate
         res = LocalCA.request_certificate(domain)
