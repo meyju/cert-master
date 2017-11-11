@@ -123,6 +123,9 @@ class BaseConfig:
         except Exception as e:
             return None
 
+    def get_ca_type(self,ca_name):
+        return self.ca[self.ca_by_name[ca_name]].ca_type
+
     def get_ca_renew_lifetime_left(self,ca_name):
         try:
             return self.ca[self.ca_by_name[ca_name]].cert_renew_lifetime_left
@@ -215,11 +218,13 @@ class CaLocalConfig(CaConfig):
 class CaACMEConfig(CaConfig):
     def __init__(self, name, CaConfig):
         super().__init__(name, CaConfig)
-        self.ca_type = 'ACME'
+        self.ca_type = 'acme'
 
         # Authentification
         self.account_key = None
         self.account_key_passphrase = None
+
+        self.directory_url = 'https://acme-v01.api.letsencrypt.org/directory'  # Let's Encrypt Production as defalut
 
         if CaConfig is not None:
             self.loadCaACMEConfig(CaConfig)
@@ -229,6 +234,8 @@ class CaACMEConfig(CaConfig):
             self.account_key = CaConfig['account_key']
         if 'account_key_passphrase' in CaConfig:
             self.account_key_passphrase = CaConfig['account_key_passphrase']
+        if 'directory_url' in CaConfig:
+            self.directory_url = CaConfig['directory_url']
 
 
 class CertSubject:

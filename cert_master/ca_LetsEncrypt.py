@@ -18,38 +18,34 @@ from acme.jose.util import ComparableX509
 from cert_master.certificate import MyCertificate
 
 class CaLetsEncrypt:
-    def __init__(self, debug=False, logger=None, stageing=False, accountKeyFile=None, accountKeyPassphrase=None):
+    def __init__(self, logger=None, ca=None):
         self
         self.logger = logger
+        self.conf = ca
+
         self.accountKey = None
-        self.accountKeyFile = accountKeyFile
-        self.accountKeyPassphrase = accountKeyPassphrase
         self.jwk_token = None
         self.acme = None
-        if stageing:
-            self.DIRECTORY_URL = 'https://acme-v01.api.letsencrypt.org/directory'  # Production
-        else:
-            self.DIRECTORY_URL = 'https://acme-staging.api.letsencrypt.org/directory' # Staging
         self.authorization = {}
         self.challenge_authorization = {}
+
         self.Route53 = None
         self.Route53Zone = None
+
         self.cert = None
 
+        if self.conf.account_key is not None:
+            self._loadAccountKey()
 
 
-    def loadLEaccountKey(self,accountKeyFile=None, accountKeyPassphrase=None):
-        if accountKeyFile:
-            self.set_accountKeyFile(accountKeyFile)
-        if accountKeyPassphrase:
-            self.set_accountKeyPassphrase(accountKeyPassphrase)
-        self.logger.info('Loading LetsEnrypt Account Key {}'.format(self.accountKeyFile))
+    def _loadAccountKey(self):
+        self.logger.info('Loading {} Account Key {}'.format(self.conf.issuer_name, self.conf.account_key))
 
         leAccountKey = MyCertificate(logger=self.logger)
-        if self.accountKeyPassphrase:
-            leAccountKey.loadPrivateKEYfile(keyfile=self.accountKeyFile, passphrase=self.accountKeyPassphrase)
+        if self.conf.account_key_passphrase:
+            leAccountKey.loadPrivateKEYfile(keyfile=self.conf.account_key, passphrase=self.conf.account_key_passphrase)
         else:
-            leAccountKey.loadPrivateKEYfile(keyfile=self.accountKeyFile)
+            leAccountKey.loadPrivateKEYfile(keyfile=self.conf.account_key)
 
         self.accountKey = leAccountKey
         return True
@@ -62,20 +58,13 @@ class CaLetsEncrypt:
         return True
 
 
-    def set_accountKeyFile(self,accountKeyFile=None):
-        self.accountKeyFile = accountKeyFile
-
-
-    def set_accountKeyPassphrase(self,accountKeyPassphrase=None):
-        self.accountKeyPassphrase = accountKeyPassphrase
-
-
     def acme_Connection(self):
         try:
-            self.acme = client.Client(self.DIRECTORY_URL, self.jwk_token)
+            self.acme = client.Client(self.conf.directory_url, self.jwk_token)
             self.logger.info('LetsEnrypt ACME Connection established')
         except Exception as e:
             print(e)
+            return False
         return True
 
     def acme_AccountInfo(self):
@@ -105,7 +94,7 @@ class CaLetsEncrypt:
 
         return all_success
 
-    def challenge_acme_authorizations(self, force_renew=False, dns_client="Route53"):
+    def challenge_acme_authorizations(self, force_renew_authorizations=False, dns_client="Route53"):
         ''' Challenge all existing ACME Authorizations
 
         :Args:
@@ -118,13 +107,14 @@ class CaLetsEncrypt:
 
         all_success = True
         for fqdn, a in self.authorization.items():
-            if a.body.status.name == 'valid' and force_renew == False:
-                self.logger.info("Challange for Domain {} is still vailid".format(fqdn))
+            if a.body.status.name == 'valid' and force_renew_authorizations == False:
+                self.logger.info("ACME authorization for Domain {} is still vailid".format(fqdn))
             else:
-                if a.body.status.name == 'valid' and force_renew == True:
-                    self.logger.info("Challange for Domain {} is forced to renew".format(fqdn))
+                if a.body.status.name == 'valid' and force_renew_authorizations == True:
+                    self.logger.info("ACME authorization for Domain {} is forced to renew".format(fqdn))
                 else:
-                    self.logger.info("Challange for Domain {} has to be done".format(fqdn))
+                    self.logger.info("ACME authorization for Domain {} has to be done/challenged".format(fqdn))
+
                 # Doing the challenge
                 if dns_client == "Route53":
                     if self.Route53Zone == None:
@@ -216,9 +206,9 @@ class CaLetsEncrypt:
             return False
 
         chain = requests.get(certificate.cert_chain_uri)
-        chain_certificate = None
 
         if chain.status_code == 200:
+            #chain_certificate = None
             chain_certificate = crypto.load_certificate(crypto.FILETYPE_ASN1, chain.content)
             pem_chain_certificate = crypto.dump_certificate(crypto.FILETYPE_PEM, chain_certificate).decode("ascii")
         else:
@@ -233,20 +223,24 @@ class CaLetsEncrypt:
 
         return True
 
+
     def save_certificates_and_key(self, domain):
         # Save all
-        self.logger.info('Saving recived LetsEnrypt certificates and key')
+        self.logger.info('Saving received certificates and key signed by "{}"'.format(self.conf.issuer_name))
         self.cert.saveKeyAsPEM(domain.file_save_path + domain.cert + '_' + self.cert.keytype.lower()+".key")
         self.cert.saveCrtAsPEM(domain.file_save_path + domain.cert + '_' + self.cert.keytype.lower() + ".crt.pem")
         self.cert.saveIntermediateAsPEM(domain.file_save_path + domain.cert + '_' + self.cert.keytype.lower() + ".intermediate.pem")
         self.cert.saveChainAsPEM(domain.file_save_path + domain.cert + '_' + self.cert.keytype.lower() + ".chain.pem")
         return True
 
+
     def setRoute53(self,obj):
         self.Route53 = obj
 
+
     def setRoute53Zone(self,zone):
         self.Route53Zone = zone
+
 
     def clean_up(self):
         self = None

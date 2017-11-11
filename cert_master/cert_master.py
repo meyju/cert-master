@@ -88,8 +88,6 @@ class CertMaster:
         bot.add_argument('--no-multiprocessing', dest='multiprocessing', required=False, action='store_false',
                          help='work without Multitasking')
         bot.add_argument('--threads', type=int, default=10, required=False, help='how many threads should be used')
-        bot.add_argument('--stage', dest='stage', required=False, action='store_false',
-                         help='switch to staging mode')
         bot.add_argument('-v', '--verbose', default=0, action='count', help='Loglevel -vvv for debug')
         bot.set_defaults(mode='bot')
 
@@ -104,8 +102,6 @@ class CertMaster:
         cert.add_argument('--cert', '--certificate', dest='certificate', required=True, help='the configured Domain')
         cert.add_argument('--force', '--force-renew', dest='force_renew', required=False, action='store_false',
                           help='the configured Domain')
-        cert.add_argument('--stage', dest='stage', required=False, action='store_false',
-                         help='switch to staging mode')
         cert.add_argument('-v', '--verbose', default=0, action='count', help='Loglevel -vvv for debug')
         cert.set_defaults(mode='cert')
 
@@ -289,7 +285,7 @@ class CertMaster:
         # Run Certificate Creation in parallel if configured
         if self.args.multiprocessing and len(threading_tasks) > 0:
             self.logger.info(50 * '=')
-            max_threads = 20
+            max_threads = 24
             threads = max_threads if len(threading_tasks) > max_threads else len(threading_tasks)
             pool = ThreadPool(threads)
 
@@ -300,7 +296,7 @@ class CertMaster:
             pool.join()
             end = time.time()
             duration = int(float(end - start))
-            self.logger.info("Multiprocessing with {0} Threads - Duration: {1}".format(threads, timedelta(seconds=duration)))
+            self.logger.debug("Multiprocessing with {0} Threads finished - Duration: {1}".format(threads, timedelta(seconds=duration)))
 
         rc = self._logStats()
 
@@ -347,25 +343,27 @@ class CertMaster:
 
     def _createCertificate(self, domain):
         self.logger.info('Requesting Certificate for "{}"'.format(domain.cert))
-        # TODO: Make generic !!!! Selecting by CA Type
-        if domain.ca == "letsencrypt":
-            self.logger.info('Requesting Certificate signed by CA: LetsEncrypt')
+
+        ca_type = self.baseconfig.get_ca_type(domain.ca)
+        self.logger.info(
+            'Requesting Certificate signed by CA: "{}"'.format(self.baseconfig.get_ca_issuer_name(domain.ca)))
+
+        if ca_type == "acme":
             res = self._useLetsEncryptCA(domain)
-            if res == False:
-                self.baseconfig.stats_ca_increment_renew_failed(domain.ca)
-            else:
-                self.baseconfig.stats_ca_increment_renew_success(domain.ca)
-        elif domain.ca == "localca":
-            self.logger.info('Requesting Certificate signed by CA: LocalCA')
+        elif ca_type == "local":
             res = self._useLocalCA(domain)
-            if res == False:
-                self.baseconfig.stats_ca_increment_renew_failed(domain.ca)
-            else:
-                self.baseconfig.stats_ca_increment_renew_success(domain.ca)
         else:
             self.logger.error('Unknown CA "{}" requested for Certificate signing!'.format(domain.ca))
 
-        self.logger.info('Requesting Certificate for "{}" finished'.format(domain.cert))
+        if res == False:
+            self.baseconfig.stats_ca_increment_renew_failed(domain.ca)
+            self.logger.error('Requesting Certificate for "{}" failed'.format(domain.cert))
+        else:
+            self.baseconfig.stats_ca_increment_renew_success(domain.ca)
+            self.logger.info('Requesting Certificate for "{}" finished successfully'.format(domain.cert))
+
+
+
 
 
     def _checkCertificate(self, domain):
@@ -479,18 +477,23 @@ class CertMaster:
 
     def _useLetsEncryptCA(self, domain):
         # PrePare LetsEncrypt:
-        leCA = CaLetsEncrypt(logger=self.logger, stageing=self.args.stage)
-        leCA.loadLEaccountKey(accountKeyFile=self.baseconfig.ca[self.baseconfig.ca_by_name[domain.ca]].account_key,
-                              accountKeyPassphrase=self.baseconfig.ca[self.baseconfig.ca_by_name[domain.ca]].account_key_passphrase)
+        leCA = CaLetsEncrypt(logger=self.logger, ca=self.baseconfig.ca[self.baseconfig.ca_by_name[domain.ca]])
         leCA.loadJWKToken()
         leCA.acme_Connection()
+
         leCA.setRoute53(self.DNS_Route53)
 
         # Challenge ACME
         leCA.get_acme_authorization(domain.cert, domain.san)
         if domain.dns_zone is not None:
             leCA.setRoute53Zone(domain.dns_zone)
-        leCA.challenge_acme_authorizations(force_renew=domain.force_renew)
+
+        # TODO: Make Option for debug:
+        cert_force_renew_is_also_force_renew_authorizations = False
+        if cert_force_renew_is_also_force_renew_authorizations:
+            leCA.challenge_acme_authorizations(force_renew_authorizations=domain.force_renew)
+        else:
+            leCA.challenge_acme_authorizations()
 
         # Get Certificate
         res = leCA.request_certificate(domain)

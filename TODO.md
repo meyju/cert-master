@@ -15,6 +15,4 @@ Todos and ideas for improvement of cert-master:
 
 - [ ] Route53: CleanUp all acme Challanges for a zone
 
-- [ ] LocalCA: Check Cert Lifetime < Lifetime of CA 
-
 - [ ] All TODOs in Source Code
