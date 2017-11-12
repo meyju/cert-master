@@ -165,6 +165,7 @@ class CaConfig:
         # Certificate Settings
         self.cert_renew_lifetime_left = None
         self.cert_renew_days_left = None
+        self.cert_default_subject = None
 
         self.stats = CaStats()
 
@@ -194,6 +195,9 @@ class CaConfig:
         if 'cert_renew_days_left' in CaConfig:
             self.cert_renew_days_left = CaConfig['cert_renew_days_left']
 
+        if 'cert_subject_default' in CaConfig:
+            self.loadSubject(CaConfig['cert_subject_default'])
+
 
 class CaLocalConfig(CaConfig):
     def __init__(self, name, CaConfig):
@@ -203,14 +207,9 @@ class CaLocalConfig(CaConfig):
         self.cert_expire_days_min = 1
         self.cert_expire_days_max = 365*2
 
-        self.cert_default_subject = None
-
         self.key = None
         self.key_passphrase = None
         self.cert = None
-
-        if 'cert_subject_default' in CaConfig:
-            self.loadSubject(CaConfig['cert_subject_default'])
 
         if CaConfig is not None:
             self.loadCaLocalConfig(CaConfig)
@@ -327,13 +326,16 @@ class CertConfig:
             for domain in CertConfig['subjectalternativename']:
                 self.san.append(domain)
 
-        if 'subject' in CertConfig:
-            self.subject = CertSubject(CertConfig['subject'])
-
         if 'ca' in CertConfig:
             self.ca = CertConfig['ca'].lower()
         else:
             self.ca = BaseConfig.default_ca
+
+        if 'subject' in CertConfig:
+            self.subject = CertSubject(CertConfig['subject'])
+        else:
+
+            self.subject = BaseConfig.ca[BaseConfig.ca_by_name[self.ca]].cert_default_subject
 
         if 'costumer' in CertConfig:
             self.costumer = CertConfig['costumer']
