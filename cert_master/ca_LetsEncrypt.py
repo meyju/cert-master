@@ -31,7 +31,9 @@ class CaLetsEncrypt:
 
         self.authorization = {}
         self.challenge_authorization = {}
-        self.cert = None
+        self.cert_rsa = None
+        self.cert_ec = None
+
 
         self.Route53 = None
         self.Route53Zone = None
@@ -155,6 +157,7 @@ class CaLetsEncrypt:
 
         return all_success
 
+
     def challenge_acme_authorizations(self, force_renew_authorizations=False, dns_client="Route53"):
         ''' Challenge all existing ACME Authorizations
 
@@ -192,6 +195,7 @@ class CaLetsEncrypt:
                     self.logger.error("No other DNS Providers Implementet yet")
 
         return all_success
+
 
     def get_dns_challenge(self, fqdn):
         # Now let's look for a DNS challenge
@@ -242,6 +246,7 @@ class CaLetsEncrypt:
         self.logger.debug("Answering the DNS challenge for domain '{}' successful".format(fqdn))
         return True
 
+
     def remove_dns_challenge(self,dns_client="Route53", zone=None, fqdn=None):
         if dns_client == "Route53":
             self.Route53.clean_acme_challenge(zone, fqdn)
@@ -250,37 +255,47 @@ class CaLetsEncrypt:
 
 
     def request_certificate(self,domain):
-        self.cert = MyCertificate(logger=self.logger)
-        self.cert.generateNewCSR(with_new_key=True,fqdn=domain.cert,san=domain.san)
+        for keytype in domain.key_type:
+            if keytype == 'RSA':
+                self.cert_rsa = MyCertificate(logger=self.logger, keytype=keytype)
+                self.cert_rsa.generateNewCSR(with_new_key=True,fqdn=domain.cert,san=domain.san)
+                ComparableCSR = self.cert_rsa.getComparableCSR()
+            elif keytype == 'ECDSA':
+                self.cert_ec = MyCertificate(logger=self.logger, keytype=keytype)
+                self.cert_ec.generateNewCSR(with_new_key=True, fqdn=domain.cert, san=domain.san)
+                ComparableCSR = self.cert_ec.getComparableCSR()
 
-        ComparableCSR = self.cert.getComparableCSR()
+            all_authorizations = []
+            for fqdn, a in self.authorization.items():
+                all_authorizations.append(a)
 
-        all_authorizations = []
-        for fqdn, a in self.authorization.items():
-            all_authorizations.append(a)
+            try:
+                (certificate, ar) = self.acme.poll_and_request_issuance(ComparableX509(ComparableCSR), all_authorizations)
+            except errors.PollError as e:
+                self.logger.error("Failed to get certificate issuance for '{0}'.".format(domain.cert))
+                self.logger.error("Error: {0}".format(e))
+                return False
 
-        try:
-            (certificate, ar) = self.acme.poll_and_request_issuance(ComparableX509(ComparableCSR), all_authorizations)
-        except errors.PollError as e:
-            self.logger.error("Failed to get certificate issuance for '{0}'.".format(domain.cert))
-            self.logger.error("Error: {0}".format(e))
-            return False
+            chain = requests.get(certificate.cert_chain_uri)
 
-        chain = requests.get(certificate.cert_chain_uri)
+            if chain.status_code == 200:
+                #chain_certificate = None
+                chain_certificate = crypto.load_certificate(crypto.FILETYPE_ASN1, chain.content)
+                pem_chain_certificate = crypto.dump_certificate(crypto.FILETYPE_PEM, chain_certificate).decode("ascii")
+            else:
+                self.logger.error("Failed to retrieve chain certificate. Status was '{0}'.".format(chain.status_code))
+                pem_chain_certificate = False
 
-        if chain.status_code == 200:
-            #chain_certificate = None
-            chain_certificate = crypto.load_certificate(crypto.FILETYPE_ASN1, chain.content)
-            pem_chain_certificate = crypto.dump_certificate(crypto.FILETYPE_PEM, chain_certificate).decode("ascii")
-        else:
-            self.logger.error("Failed to retrieve chain certificate. Status was '{0}'.".format(chain.status_code))
-            pem_chain_certificate = False
+            pem_certificate = crypto.dump_certificate(crypto.FILETYPE_PEM, certificate.body.wrapped).decode("ascii")
 
-        pem_certificate = crypto.dump_certificate(crypto.FILETYPE_PEM, certificate.body.wrapped).decode("ascii")
-
-        self.cert.loadCertfromPEM(pem_certificate)
-        if pem_chain_certificate:
-            self.cert.loadIntermediateCertfromPEM(pem_chain_certificate)
+            if keytype == 'RSA':
+                self.cert_rsa.loadCertfromPEM(pem_certificate)
+                if pem_chain_certificate:
+                    self.cert_rsa.loadIntermediateCertfromPEM(pem_chain_certificate)
+            elif keytype == 'ECDSA':
+                self.cert_ec.loadCertfromPEM(pem_certificate)
+                if pem_chain_certificate:
+                    self.cert_ec.loadIntermediateCertfromPEM(pem_chain_certificate)
 
         return True
 
@@ -288,10 +303,17 @@ class CaLetsEncrypt:
     def save_certificates_and_key(self, domain):
         # Save all
         self.logger.info('Saving received certificates and key signed by "{}"'.format(self.conf.issuer_name))
-        self.cert.saveKeyAsPEM(domain.file_save_path + domain.cert + '_' + self.cert.keytype.lower()+".key")
-        self.cert.saveCrtAsPEM(domain.file_save_path + domain.cert + '_' + self.cert.keytype.lower() + ".crt.pem")
-        self.cert.saveIntermediateAsPEM(domain.file_save_path + domain.cert + '_' + self.cert.keytype.lower() + ".intermediate.pem")
-        self.cert.saveChainAsPEM(domain.file_save_path + domain.cert + '_' + self.cert.keytype.lower() + ".chain.pem")
+        for keytype in domain.key_type:
+            if keytype == 'RSA':
+                self.cert_rsa.saveKeyAsPEM(domain.file_save_path + domain.cert + '_rsa.key')
+                self.cert_rsa.saveCrtAsPEM(domain.file_save_path + domain.cert + '_rsa.crt.pem')
+                self.cert_rsa.saveIntermediateAsPEM(domain.file_save_path + domain.cert + '_rsa.intermediate.pem')
+                self.cert_rsa.saveChainAsPEM(domain.file_save_path + domain.cert + '_rsa.chain.pem')
+            elif keytype == 'ECDSA':
+                self.cert_ec.saveKeyAsPEM(domain.file_save_path + domain.cert + '_ecdsa.key')
+                self.cert_ec.saveCrtAsPEM(domain.file_save_path + domain.cert + '_ecdsa.crt.pem')
+                self.cert_ec.saveIntermediateAsPEM(domain.file_save_path + domain.cert + '_ecdsa.intermediate.pem')
+                self.cert_ec.saveChainAsPEM(domain.file_save_path + domain.cert + '_ecdsa.chain.pem')
         return True
 
 

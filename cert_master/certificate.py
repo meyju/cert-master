@@ -10,7 +10,7 @@ import OpenSSL
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives.asymmetric import rsa, ec
 from cryptography.hazmat.primitives import serialization
 from cryptography.x509.oid import NameOID
 from cryptography.x509.general_name import GeneralName
@@ -44,7 +44,9 @@ class MyCertificate:
                 key_size=self.BITS,
                 backend=self.backend)
         elif self.keytype == "ECDSA":
-            self.logger.error("ECDSA - NOT Implementet yet")
+            self.logger.debug("Generating new ECDSA Key with SECP256R1 curve")
+            # TODO: Support other curves to
+            self.key = ec.generate_private_key(ec.SECP256R1,backend=self.backend)
         else:
             self.logger.error("unkown keytype " + str(self.keytype) + " - error")
 
@@ -54,23 +56,17 @@ class MyCertificate:
         if passphrase:
             self._setPassphrase(passphrase)
 
-        if self.keytype == "RSA":
-            #self.logger.debug("Loading RSA Key '"+str(self.keyfile)+"'")
-            with open(self.keyfile, "rb") as key_file:
-                if self.passphrase is not None:
-                    rsakey = serialization.load_pem_private_key(key_file.read(),
-                                                                password=bytes(self.passphrase, 'utf-8'),
-                                                                backend=self.backend)
-                else:
-                    rsakey = serialization.load_pem_private_key(key_file.read(),
-                                                                password=None,
-                                                                backend=self.backend)
-                self.key = rsakey
-
-                return True
-
-        elif self.keytype == "ECDSA":
-            self.logger.error("ECDSA - NOT Implementet yet")
+        with open(self.keyfile, "rb") as key_file:
+            if self.passphrase is not None:
+                key = serialization.load_pem_private_key(key_file.read(),
+                                                            password=bytes(self.passphrase, 'utf-8'),
+                                                            backend=self.backend)
+            else:
+                key = serialization.load_pem_private_key(key_file.read(),
+                                                            password=None,
+                                                            backend=self.backend)
+            self.key = key
+            return True
 
         return False
 

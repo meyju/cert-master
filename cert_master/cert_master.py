@@ -250,7 +250,6 @@ class CertMaster:
             self.logger.error('Deactivation aborted')
 
 
-
     def cert(self):
         self.logger.debug('CertMaster CERT')
         self.logger.error('Running BOT with filter for given certificates')
@@ -294,7 +293,11 @@ class CertMaster:
             # Validate Cert Config / Append Defaults
             (domain, validation_error) = self._validate_and_fillup_with_defaults(domain)
 
-            self.baseconfig.stats_ca_increment_certs(domain.ca, increment=1)
+            self.baseconfig.stats_ca_increment_certs(domain.ca, increment=len(domain.key_type))
+            if 'RSA' in domain.key_type:
+                self.baseconfig.stats_ca_increment_certs_rsa(domain.ca, increment=1)
+            if 'ECDSA' in domain.key_type:
+                self.baseconfig.stats_ca_increment_certs_ec(domain.ca, increment=1)
             self.baseconfig.stats_ca_increment_fqdns(domain.ca, increment=len(domain.san))
 
             if validation_error is not False:
@@ -303,7 +306,7 @@ class CertMaster:
                     self.logger.error('skipping faulty configuration! {}'.format(domain))
                 else:
                     self.logger.error('skipping "{}" certificate!'.format(domain.cert))
-                self.baseconfig.stats_ca_increment_config_error(domain.ca, increment=1)
+                self.baseconfig.stats_ca_increment_config_error(domain.ca, increment=len(domain.key_type))
                 continue
 
             self.logger.info('Certificat (CN/Domain): {}'.format(domain.cert))
@@ -321,14 +324,14 @@ class CertMaster:
             (check_result, check_msg) = self._checkCertificate(domain)
             if check_result is True and domain.force_renew == False:
                 self.logger.info('Certificate "{}" is valid and matches configuration.'.format(domain.cert))
-                self.baseconfig.stats_ca_increment_check_successful(domain.ca)
+                self.baseconfig.stats_ca_increment_check_successful(domain.ca, increment=len(domain.key_type))
             else:
                 for msg in check_msg:
                     self.logger.warning('Certificate "{}" - {}'.format(domain.cert, msg))
                 if domain.force_renew == True:
                     self.logger.warning('Certificate "{}" - Forced to renew'.format(domain.cert))
                 self.logger.info('Certificate "{}" has to be created/reissued.'.format(domain.cert))
-                self.baseconfig.stats_ca_increment_to_renew(domain.ca)
+                self.baseconfig.stats_ca_increment_to_renew(domain.ca, increment=len(domain.key_type))
 
                 # Create or Renew Certificate
                 if self.args.multiprocessing:
@@ -366,6 +369,7 @@ class CertMaster:
             else:
                 self.logger.info(PROG + ' finished - Quit')
                 sys.exit(0)
+
 
     def _ConnectDNSRoute53(self):
         try:
@@ -414,10 +418,10 @@ class CertMaster:
             self.logger.error('Unknown CA "{}" requested for Certificate signing!'.format(domain.ca))
 
         if res == False:
-            self.baseconfig.stats_ca_increment_renew_failed(domain.ca)
+            self.baseconfig.stats_ca_increment_renew_failed(domain.ca, increment=len(domain.key_type))
             self.logger.error('Requesting Certificate for "{}" failed'.format(domain.cert))
         else:
-            self.baseconfig.stats_ca_increment_renew_success(domain.ca)
+            self.baseconfig.stats_ca_increment_renew_success(domain.ca, increment=len(domain.key_type))
             self.logger.info('Requesting Certificate for "{}" finished successfully'.format(domain.cert))
 
 
@@ -443,7 +447,7 @@ class CertMaster:
             key_file = domain.file_save_path + domain.cert + '_' + keytype.lower() + ".key"
             if not os.path.isfile(cert_file):
                 check_result = False
-                check_msg.append('Certification File can not be found: {}'.format(cert_file))
+                check_msg.append('Certification File not found: {}'.format(cert_file))
                 continue
             if not os.path.isfile(key_file):
                 check_result = False
@@ -594,6 +598,8 @@ class CertMaster:
         self.logger.info('CA Report:')
         total_stats = {}
         total_stats['certs'] = 0
+        total_stats['certs_rsa'] = 0
+        total_stats['certs_ec'] = 0
         total_stats['fqdn'] = 0
         total_stats['check_successful'] = 0
         total_stats['to_renew'] = 0
@@ -603,6 +609,10 @@ class CertMaster:
         for ca in self.baseconfig.ca:
             self.logger.info('CA "{}" Certificates: {}'.format(ca.issuer_name, ca.stats.certs))
             total_stats['certs'] += ca.stats.certs
+            self.logger.info('CA "{}" Certificates RSA: {}'.format(ca.issuer_name, ca.stats.certs_rsa))
+            total_stats['certs_rsa'] += ca.stats.certs_rsa
+            self.logger.info('CA "{}" Certificates EC: {}'.format(ca.issuer_name, ca.stats.certs_ec))
+            total_stats['certs_ec'] += ca.stats.certs_ec
             self.logger.info('CA "{}" FQDNs: {}'.format(ca.issuer_name, ca.stats.fqdn))
             total_stats['fqdn'] += ca.stats.fqdn
             self.logger.info('CA "{}" Certificates check successful(valid and matching configuration): {}'.format(ca.issuer_name, ca.stats.check_successful))
@@ -619,6 +629,8 @@ class CertMaster:
         self.logger.info(50 * '=')
         self.logger.info('Summary Report:')
         self.logger.info('Total Certificates: {}'.format(total_stats['certs']))
+        self.logger.info('Total Certificates RSA: {}'.format(total_stats['certs_rsa']))
+        self.logger.info('Total Certificates EC: {}'.format(total_stats['certs_ec']))
         self.logger.info('Total FQDNs: {}'.format(total_stats['fqdn']))
         self.logger.info('Total Certificates check successful(valid and matching configuration): {}'.format(total_stats['check_successful']))
         self.logger.info('Total Certificates to create/reissue: {}'.format(total_stats['to_renew']))

@@ -11,6 +11,8 @@ class BaseConfig:
         self.stageing = False
         self.config_directory = None
         self.default_key_type = 'RSA'
+        # TODO: Support 'ECDSA' also as global default
+        self.ec_curve = 'secp256r1'
 
         # Storage
         self.storage_mode = 'file'
@@ -78,6 +80,18 @@ class BaseConfig:
     def stats_ca_increment_certs(self, ca_name, increment=1):
         try:
             self.ca[self.ca_by_name[ca_name]].stats.increment_certs(increment)
+        except Exception as e:
+            pass
+
+    def stats_ca_increment_certs_rsa(self, ca_name, increment=1):
+        try:
+            self.ca[self.ca_by_name[ca_name]].stats.increment_certs_rsa(increment)
+        except Exception as e:
+            pass
+
+    def stats_ca_increment_certs_ec(self, ca_name, increment=1):
+        try:
+            self.ca[self.ca_by_name[ca_name]].stats.increment_certs_ec(increment)
         except Exception as e:
             pass
 
@@ -337,8 +351,8 @@ class CertConfig:
             self.file_save_path += self.sub + '/'
         self.file_save_path = self.file_save_path.replace('//', '/')
 
-        #if 'key_type' in CertConfig:
-        #    self.key_type = CertConfig['key_type']
+        if 'key_type' in CertConfig:
+            self.key_type = self._parse_key_type(CertConfig['key_type'])
 
         if 'validity_days' in CertConfig:
             try:
@@ -355,6 +369,13 @@ class CertConfig:
         if 'force_renew' in CertConfig:
             self.force_renew = self._str2bool(CertConfig['force_renew'])
 
+    def _parse_key_type(self,key_type):
+        r = []
+        if 'RSA' in str(key_type).upper():
+            r.append('RSA')
+        if 'ECDSA' in str(key_type).upper():
+            r.append('ECDSA')
+        return r
 
     def _LowerCaseOfKey(self,x, recusiv=True):
         r = {}
@@ -380,6 +401,8 @@ class CaStats:
     def __init__(self):
         self
         self.certs = 0
+        self.certs_rsa = 0
+        self.certs_ec = 0
         self.fqdn = 0
         self.to_renew = 0
         self.renew_success = 0
@@ -393,6 +416,12 @@ class CaStats:
 
     def increment_certs(self,increment=1):
         self.certs += increment
+
+    def increment_certs_rsa(self,increment=1):
+        self.certs_rsa += increment
+
+    def increment_certs_ec(self,increment=1):
+        self.certs_ec += increment
 
     def increment_fqdn(self,increment=1):
         self.fqdn += increment
