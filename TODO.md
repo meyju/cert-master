@@ -12,6 +12,8 @@ Todos and ideas for improvement of cert-master:
 - [ ] acme get pending challenges
 - [ ] Auto Register / ReRegister
 - [ ] CLI Option for showing certificate infos
+- [ ] Revoke Certificates
+- [ ] Verify if certificate was revoked and generate new
 
 - [ ] Route53: CleanUp all acme Challanges for a zone
 
