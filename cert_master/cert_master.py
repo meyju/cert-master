@@ -17,6 +17,7 @@ from cert_master.ca_Local import CaLocal
 from cert_master.certificate import MyCertificate
 from cert_master.configs import BaseConfig, CertConfig
 
+
 PROG='cert-master'
 
 class CertMaster:
@@ -58,6 +59,11 @@ class CertMaster:
         DESCRIPTION_INFO = \
             """
         Shows raw registration info for the current account.
+            """
+
+        DESCRIPTION_REGISTER = \
+            """
+        Register configured account key of given ca
             """
 
         DESCRIPTION_BOT = \
@@ -105,6 +111,47 @@ class CertMaster:
         cert.add_argument('-v', '--verbose', default=0, action='count', help='Loglevel -vvv for debug')
         cert.set_defaults(mode='cert')
 
+
+        # Register ACME Key
+        register = subparsers.add_parser(
+            'register',
+            help="Register configured account key of given ca",
+            description=DESCRIPTION_CERT,
+            formatter_class=Formatter,
+        )
+        register.add_argument('--config', '-c', dest="config", help='YAML file with config', required=True)
+        register.add_argument('--ca', dest='ca', required=True,
+                              help='Name of the configured ca where the registration should be done')
+        register.add_argument('-v', '--verbose', default=0, action='count', help='Loglevel -vvv for debug')
+        register.set_defaults(mode='register')
+
+        # Update Registered ACME Key
+        # TODO: Impelment Update existing Registration
+        # updateregister = subparsers.add_parser(
+        #     'update-register',
+        #     help="Register configured account key of given ca",
+        #     description=DESCRIPTION_CERT,
+        #     formatter_class=Formatter,
+        # )
+        # updateregister.add_argument('--config', '-c', dest="config", help='YAML file with config', required=True)
+        # updateregister.add_argument('--ca', dest='ca', required=True,
+        #                       help='Name of the configured ca where the registration should be done')
+        # updateregister.add_argument('-v', '--verbose', default=0, action='count', help='Loglevel -vvv for debug')
+        # updateregister.set_defaults(mode='updateregister')
+
+        # Deactivate ACME Key
+        deactivate = subparsers.add_parser(
+            'deactivate',
+            help="Deactivate configured account key of given ca",
+            description=DESCRIPTION_CERT,
+            formatter_class=Formatter,
+        )
+        deactivate.add_argument('--config', '-c', dest="config", help='YAML file with config', required=True)
+        deactivate.add_argument('--ca', dest='ca', required=True,
+                              help='Name of the configured ca where the registration should be done')
+        deactivate.add_argument('-v', '--verbose', default=0, action='count', help='Loglevel -vvv for debug')
+        deactivate.set_defaults(mode='deactivate')
+
         # Account info
         info = subparsers.add_parser(
             'info',
@@ -113,6 +160,8 @@ class CertMaster:
             formatter_class=Formatter,
         )
         info.add_argument('--config', '-c', dest="config", help='YAML file with config', required=True)
+        info.add_argument('--ca', dest='ca', required=True,
+                              help='Name of the configured ca where the information should be recived')
         info.add_argument('-v', '--verbose', default=0, action='count', help='Loglevel -vvv for debug')
         info.set_defaults(mode='info')
 
@@ -144,22 +193,62 @@ class CertMaster:
             self.cert()
         elif self.args.mode == 'register':
             self.register()
+        elif self.args.mode == 'updateregister':
+            self.updateregister()
+        elif self.args.mode == 'deactivate':
+            self.deactivate()
+
         sys.exit(0)
 
 
     def info(self):
         self.logger.debug('CertMaster INFO')
         self._loadConfigs()
-        leCA = CaLetsEncrypt(logger=self.logger)
-        leCA.loadLEaccountKey(accountKeyFile=self.baseconfig['LetsEncrypt']['account_key'],
-                              accountKeyPassphrase=self.baseconfig['LetsEncrypt']['account_key_passphrase'])
-        leCA.loadJWKToken()
-        leCA.acme_Connection()
-        leCA.acme_AccountInfo()
+
+        acmeCA = CaLetsEncrypt(logger=self.logger,
+                               ca=self.baseconfig.ca[self.baseconfig.ca_by_name[self.args.ca.lower()]])
+        acmeCA.loadJWKToken()
+        acmeCA.acme_Connection()
+        acmeCA.acme_AccountInfo()
 
 
     def register(self):
-        self.logger.error('CertMaster REGISTER Function - NOT Implementet yet')
+        self.logger.info('CertMaster REGISTER Function')
+        self._loadConfigs(load_cert_config=False)
+
+        acmeCA = CaLetsEncrypt(logger=self.logger,
+                               ca=self.baseconfig.ca[self.baseconfig.ca_by_name[self.args.ca.lower()]])
+        acmeCA.loadJWKToken()
+        acmeCA.acme_Connection()
+        acmeCA.acme_AccountRegister()
+
+
+    def updateregister(self):
+        self.logger.info('CertMaster UPDATE-REGISTER Function')
+        self._loadConfigs(load_cert_config=False)
+
+        acmeCA = CaLetsEncrypt(logger=self.logger,
+                               ca=self.baseconfig.ca[self.baseconfig.ca_by_name[self.args.ca.lower()]])
+        acmeCA.loadJWKToken()
+        acmeCA.acme_Connection()
+
+        acmeCA.acme_AccountInfo()
+        acmeCA.acme_AccountUpdateRegistration()
+
+
+    def deactivate(self):
+        self.logger.info('CertMaster DEACTIVATE Function')
+        self._loadConfigs(load_cert_config=False)
+
+        acmeCA = CaLetsEncrypt(logger=self.logger,
+                               ca=self.baseconfig.ca[self.baseconfig.ca_by_name[self.args.ca.lower()]])
+        acmeCA.loadJWKToken()
+        acmeCA.acme_Connection()
+        if self._confirm_yes("Are you sour that you want to deactivate your acme Account"):
+            acmeCA.acme_AccountDeactivate()
+        else:
+            self.logger.error('Deactivation aborted')
+
 
 
     def cert(self):
@@ -197,7 +286,8 @@ class CertMaster:
                     continue
                 else:
                     # Overwrite force_renew with given args option
-                    domain.force_renew = self.args.force_renew
+                    if self.args.force_renew:
+                        domain.force_renew = self.args.force_renew
 
             self.logger.info(50 * '=')
 
@@ -290,22 +380,23 @@ class CertMaster:
             return False
 
 
-    def _loadConfigs(self):
+    def _loadConfigs(self, load_cert_config=True):
         self.logger.debug('using config file: {}'.format(self.args.config))
         with open(self.args.config, 'r') as fstream:
             self.baseconfig = BaseConfig(logger=self.logger, BaseConfig=yaml.load(fstream))
 
         # loading yaml config for domains
-        self.certconfig = []
-        files = os.listdir(self.baseconfig.config_directory)
-        for f in files:
-            if f.endswith('.yaml'):
-                conffile = open(self.baseconfig.config_directory + f, "r")
-                docs = yaml.load_all(conffile)
-                for doc in docs:
-                    # TODO: Filter if not BOT mode
-                    if doc is not None:
-                        self.certconfig.append(CertConfig(CertConfig=doc, BaseConfig=self.baseconfig))
+        if load_cert_config:
+            self.certconfig = []
+            files = os.listdir(self.baseconfig.config_directory)
+            for f in files:
+                if f.endswith('.yaml'):
+                    conffile = open(self.baseconfig.config_directory + f, "r")
+                    docs = yaml.load_all(conffile)
+                    for doc in docs:
+                        # TODO: Filter if not BOT mode
+                        if doc is not None:
+                            self.certconfig.append(CertConfig(CertConfig=doc, BaseConfig=self.baseconfig))
 
 
     def _createCertificate(self, domain):
@@ -328,9 +419,6 @@ class CertMaster:
         else:
             self.baseconfig.stats_ca_increment_renew_success(domain.ca)
             self.logger.info('Requesting Certificate for "{}" finished successfully'.format(domain.cert))
-
-
-
 
 
     def _checkCertificate(self, domain):
@@ -430,6 +518,7 @@ class CertMaster:
 
         return (check_result, check_msg)
 
+
     def _useLocalCA(self, domain):
         # PrePare LetsEncrypt:
         LocalCA = CaLocal(logger=self.logger, ca=self.baseconfig.ca[self.baseconfig.ca_by_name[domain.ca]])
@@ -441,6 +530,7 @@ class CertMaster:
 
         LocalCA.clean_up()
         return res
+
 
     def _useLetsEncryptCA(self, domain):
         # PrePare LetsEncrypt:
@@ -470,6 +560,7 @@ class CertMaster:
         leCA.clean_up()
         return res
 
+
     def _validate_and_fillup_with_defaults(self, domain):
         validation_error = False
         # Check for minimum:
@@ -484,6 +575,19 @@ class CertMaster:
             domain.subject = None
 
         return (domain, validation_error)
+
+
+    def _confirm_yes(self,question):
+        """
+        Ask user to enter Y or N (case-insensitive).
+        :return: True if the answer is Y.
+        :rtype: bool
+        """
+        answer = ""
+        while answer not in ["y", "n"]:
+            answer = input(str(question)+" [y/n]? ").lower()
+        return answer == "y"
+
 
     def _logStats(self):
         self.logger.info(50 * '=')

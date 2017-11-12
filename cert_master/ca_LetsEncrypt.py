@@ -26,13 +26,16 @@ class CaLetsEncrypt:
         self.accountKey = None
         self.jwk_token = None
         self.acme = None
+
+        self.account_uri = None
+
         self.authorization = {}
         self.challenge_authorization = {}
+        self.cert = None
 
         self.Route53 = None
         self.Route53Zone = None
 
-        self.cert = None
 
         if self.conf.account_key is not None:
             self._loadAccountKey()
@@ -67,14 +70,72 @@ class CaLetsEncrypt:
             return False
         return True
 
+
     def acme_AccountInfo(self):
+        self.logger.info("getting acme account info ...")
+
+        if not self.account_uri:
+            try:
+                regr = self.acme.register()
+            except errors.ConflictError as e:
+                self.account_uri = e.location
+
+        if self.account_uri:
+            self.logger.info('Account URI: {}'.format(self.account_uri))
+            try:
+                info = self.acme.query_registration(messages.RegistrationResource(uri=self.account_uri))
+                self.logger.info('Account contact: {}'.format(info.body.contact))
+                self.logger.info('Account emails: {}'.format(info.body.emails))
+                self.logger.info('Account phones: {}'.format(info.body.phones))
+                self.logger.info('Account agreement: {}'.format(info.body.agreement))
+                #self.logger.debug('Account object: {}'.format(info))
+            except Exception as e:
+                self.logger.error(e)
+
+
+    def acme_AccountRegister(self):
+        self.logger.info("Registering account...")
         try:
-            self.logger.info("Requesting account data...")
-            # TODO: Get Account URI and Status
-            self.logger.error("TODO: Get Account URI and Status")
+            regr = self.acme.register()
+            self.logger.info('Auto-accepting TOS: %s', regr.terms_of_service)
+            self.acme.agree_to_tos(regr)
+            self.logger.debug(regr)
+        except errors.ConflictError as e:
+            self.account_uri = e.location
         except Exception as e:
             print(e)
-        return True
+
+        if self.account_uri:
+            self.logger.info('Account was already registerd')
+            self.logger.info('Account URI: {}'.format(self.account_uri))
+
+
+    def acme_AccountDeactivate(self):
+        self.logger.info("Deactivating account...")
+        try:
+            regr = self.acme.register()
+        except errors.ConflictError as e:
+            self.account_uri = e.location
+        except Exception as e:
+            print(e)
+
+        if self.account_uri:
+            try:
+                self.acme.deactivate_registration(messages.RegistrationResource(uri=self.account_uri))
+            except Exception as e:
+                self.logger.error(e)
+            self.logger.info('Account has bin deactivated')
+
+
+    def acme_AccountUpdateRegistration(self):
+        self.logger.info("UpdateRegistration of ACME account...")
+        self.logger.error("Not yet implemented")
+        # contact = (
+        #     'mailto:foo@example.com'
+        # )
+        # agreement = 'https://letsencrypt.org/documents/LE-SA-v1.1.1-August-1-2016.pdf'
+        # update_regestration = messages.UpdateRegistration(uri=self.account_uri,contact=contact,agreement=agreement)
+        # regr = self.acme.update_registration(messages.RegistrationResource(),update_regestration)
 
 
     def get_acme_authorization(self, domain, san=[]):
