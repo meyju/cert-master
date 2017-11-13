@@ -334,7 +334,6 @@ class CertConfig:
         if 'subject' in CertConfig:
             self.subject = CertSubject(CertConfig['subject'])
         else:
-
             self.subject = BaseConfig.ca[BaseConfig.ca_by_name[self.ca]].cert_default_subject
 
         if 'costumer' in CertConfig:

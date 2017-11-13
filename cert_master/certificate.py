@@ -195,7 +195,7 @@ class MyCertificate:
 
         # Valid Times
         if validity_days:
-            if validity_days > CaConfig.cert_expire_days_min and validity_days < CaConfig.cert_expire_days_max:
+            if validity_days >= CaConfig.cert_expire_days_min and validity_days <= CaConfig.cert_expire_days_max:
                 days=validity_days
             elif validity_days < CaConfig.cert_expire_days_min:
                 days=CaConfig.cert_expire_days_min

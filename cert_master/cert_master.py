@@ -251,12 +251,12 @@ class CertMaster:
 
 
     def cert(self):
-        self.logger.debug('CertMaster CERT')
-        self.logger.error('Running BOT with filter for given certificates')
+        self.logger.info('CertMaster CERT')
+        self.logger.info('Running BOT with filter for given certificates')
         # Set Disable Multiprocessing
         self.args.multiprocessing = False
         self.bot(only_filter_cert=self.args.certificate)
-        self.logger.debug('CertMaster CERT finished')
+        self.logger.info('CertMaster CERT finished')
 
 
     def bot(self, only_filter_cert=None):
