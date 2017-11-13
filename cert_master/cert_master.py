@@ -469,7 +469,7 @@ class CertMaster:
             if checkIssuerIs is not None:
                 if not checkCert.checkCertIssuerContains(checkIssuerIs):
                     check_result = False
-                    check_msg.append('not issued by {})'.format(domain['CA']))
+                    check_msg.append('not issued by {})'.format(domain.ca))
 
             # Check Time - Valid
             if not checkCert.checkCertTimeValid():
