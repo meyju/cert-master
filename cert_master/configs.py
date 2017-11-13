@@ -208,8 +208,12 @@ class CaLocalConfig(CaConfig):
         self.cert_expire_days_max = 365*2
 
         self.key = None
+        self.key_rsa = None
+        self.key_ec = None
         self.key_passphrase = None
         self.cert = None
+        self.cert_rsa = None
+        self.cert_ec = None
 
         if CaConfig is not None:
             self.loadCaLocalConfig(CaConfig)
@@ -217,12 +221,20 @@ class CaLocalConfig(CaConfig):
     def loadCaLocalConfig(self, CaConfig):
         if 'key' in CaConfig:
             self.key = CaConfig['key']
+        if 'key_rsa' in CaConfig:
+            self.key_rsa = CaConfig['key_rsa']
+        if 'key_ec' in CaConfig:
+            self.key_ec = CaConfig['key_ec']
         if 'key_passphrase' in CaConfig:
             self.key_passphrase = CaConfig['key_passphrase']
         elif 'keypassphrase' in CaConfig:
             self.key_passphrase = CaConfig['keypassphrase']
         if 'cert' in CaConfig:
             self.cert = CaConfig['cert']
+        if 'cert_rsa' in CaConfig:
+            self.cert_rsa = CaConfig['cert_rsa']
+        if 'cert_ec' in CaConfig:
+            self.cert_ec = CaConfig['cert_ec']
 
     def loadSubject(self, subject):
         self.cert_default_subject = CertSubject(subject)

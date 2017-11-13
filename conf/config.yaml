@@ -30,6 +30,12 @@ ca:
     cert_expire_days: 90
     cert_renew_lifetime_left: 33%
     cert_renew_days_left: 30
-    Key: 'conf/MY_Intermidiate_CA_1.key'
     KeyPassphrase: 'passphrase'
+    # One Key pair
+    Key: 'conf/MY_Intermidiate_CA_1.key'
     Cert: 'conf/MY_Intermidiate_CA_1.crt'
+    # Two Key pairs - one RSA and on EC key
+    key_rsa: 'conf/MY_Intermidiate_CA_1.key'
+    cert_rsa: 'conf/MY_Intermidiate_CA_1.crt'
+    key_ec: 'conf/MY_Intermidiate_EC_CA_1.key'
+    cert_ec: 'conf/MY_Intermidiate_EC_CA_1.crt'
