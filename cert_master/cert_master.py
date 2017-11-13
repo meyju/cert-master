@@ -398,7 +398,6 @@ class CertMaster:
                     conffile = open(self.baseconfig.config_directory + f, "r")
                     docs = yaml.load_all(conffile)
                     for doc in docs:
-                        # TODO: Filter if not BOT mode
                         if doc is not None:
                             self.certconfig.append(CertConfig(CertConfig=doc, BaseConfig=self.baseconfig))
 
@@ -480,7 +479,7 @@ class CertMaster:
                 check_days_left = self.baseconfig.get_ca_renew_days_left(domain.ca)
                 cert_validity = checkCert.getCertValidity()
 
-                # TODO: set defalut on configs -> CaConfig if nothing is specificed
+                # TODO: set default on configs.CaConfig if nothing is specified
                 # Set Fallback Default 10% lifetime left
                 if check_lifetime == None and check_days_left == None:
                     check_lifetime = 0.1
