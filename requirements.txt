@@ -4,6 +4,7 @@ PyYAML>=3.11
 requests>=2.18
 argparse
 boto3
-acme>=0.18
+acme>=0.24
 cryptography>=2.1.1
 pyOpenSSL
+josepy

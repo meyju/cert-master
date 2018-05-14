@@ -10,11 +10,11 @@ import time
 import json
 from OpenSSL import crypto
 from acme import messages
-from acme import jose
 from acme import challenges
 from acme import client
 from acme import errors
-from acme.jose.util import ComparableX509
+import josepy
+from josepy.util import ComparableX509
 from cert_master.certificate import MyCertificate
 
 class CaLetsEncrypt:
@@ -59,7 +59,7 @@ class CaLetsEncrypt:
     def loadJWKToken(self):
         if not self.accountKey:
             self.logger.error('No LetsEnrypt Account Key loaded to generate JWK')
-        self.jwk_token = jose.JWKRSA(key=self.accountKey.key)
+        self.jwk_token = josepy.JWKRSA(key=self.accountKey.key)
         return True
 
 
